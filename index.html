@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>열흘날씨</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+:root {
+  --ground: #F3F6F9;
+  --card: #FFFFFF;
+  --line: #E2E9F0;
+  --ink: #17222D;
+  --muted: #5E7183;
+  --faint: #90A2B3;
+  --accent: #2B6FC9;
+  --accent-soft: #E3EEFB;
+  --warm: #D96A2B;
+  --cool: #3579B8;
+  --bar-track: #EAF0F5;
+  --pill-strong-ink: #FFFFFF;
+  --chip-bg: #F0F4F8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #0F151C;
+    --card: #18212B;
+    --line: #26313D;
+    --ink: #E7EDF3;
+    --muted: #8CA0B3;
+    --faint: #64788A;
+    --accent: #6FA8E8;
+    --accent-soft: #1F3450;
+    --warm: #E8925C;
+    --cool: #6FB1DC;
+    --bar-track: #212C38;
+    --pill-strong-ink: #0F151C;
+    --chip-bg: #202B36;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 440px; margin: 0 auto; padding: 20px 16px 48px; }
+
+header { margin-bottom: 16px; }
+.eyebrow {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.08em;
+  color: var(--faint); text-transform: uppercase; margin-bottom: 2px;
+}
+h1 { font-size: 22px; font-weight: 700; margin: 0; line-height: 1.3; text-wrap: balance; }
+.updated { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.hero { padding: 18px 18px 16px; margin-bottom: 14px; }
+.hero-date { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.hero-date strong { font-size: 16px; font-weight: 700; }
+.today-tag {
+  font-size: 11px; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); border-radius: 99px; padding: 1px 9px;
+}
+.hero-temps {
+  display: flex; align-items: baseline; gap: 10px;
+  font-variant-numeric: tabular-nums; margin-bottom: 14px;
+}
+.hero-temps .lo { font-size: 34px; font-weight: 700; color: var(--cool); }
+.hero-temps .hi { font-size: 34px; font-weight: 700; color: var(--warm); }
+.hero-temps .slash { font-size: 22px; color: var(--faint); }
+.hero-temps .unit-note { font-size: 12px; color: var(--muted); margin-left: auto; text-align: right; }
+
+.halves { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.half {
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.half-head { display: flex; align-items: center; justify-content: space-between; }
+.half-name { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+.half-temp { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.pill {
+  display: inline-block; font-size: 12px; font-weight: 500;
+  border-radius: 99px; padding: 2px 10px; white-space: nowrap;
+  align-self: flex-start;
+}
+.pill.r0 { color: var(--muted); background: var(--chip-bg); }
+.pill.r1 { color: var(--accent); background: var(--accent-soft); }
+.pill.r2 { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.pill.r3 { color: var(--pill-strong-ink); background: var(--accent); opacity: 0.85; }
+.pill.r4 { color: var(--pill-strong-ink); background: var(--accent); }
+
+.chips-label { font-size: 11px; font-weight: 700; color: var(--faint); margin-bottom: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip {
+  font-size: 12px; background: var(--chip-bg); color: var(--ink);
+  border-radius: 7px; padding: 2px 8px;
+}
+.chips .none { font-size: 12px; color: var(--faint); }
+
+.days { display: flex; flex-direction: column; }
+.days details { border-bottom: 1px solid var(--line); }
+.days details:last-child { border-bottom: none; }
+.days summary {
+  list-style: none; cursor: pointer; padding: 12px 16px;
+  display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center;
+}
+.days summary::-webkit-details-marker { display: none; }
+.d-date { display: flex; flex-direction: column; line-height: 1.25; }
+.d-date .dd { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.d-date .wd { font-size: 12px; color: var(--muted); }
+.d-range { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.d-range .lo { font-size: 14px; font-weight: 500; color: var(--cool); width: 30px; text-align: right; }
+.d-range .hi { font-size: 14px; font-weight: 700; color: var(--warm); width: 30px; }
+.bar { flex: 1; height: 5px; border-radius: 99px; background: var(--bar-track); position: relative; min-width: 40px; }
+.bar i {
+  position: absolute; top: 0; bottom: 0; border-radius: 99px;
+  background: linear-gradient(90deg, var(--cool), var(--warm));
+}
+.d-rain { display: flex; gap: 4px; }
+.d-rain .pill { font-size: 11px; padding: 1px 8px; }
+.d-detail { padding: 0 16px 14px; }
+.d-detail .halves { margin-top: 2px; }
+
+.empty {
+  text-align: center; color: var(--muted); padding: 60px 20px;
+  font-size: 14px;
+}
+.footnote { font-size: 11px; color: var(--faint); margin-top: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="app"><div class="empty">불러오는 중…</div></div>
+</div>
+
+<script>
+const RAIN_RANK = { "안옴": 0, "가능성 낮음": 1, "비올 가능성 있음": 2, "비올 가능성 높음": 3, "비옴": 4 };
+const RAIN_SHORT = { "안옴": "안옴", "가능성 낮음": "낮음", "비올 가능성 있음": "있음", "비올 가능성 높음": "높음", "비옴": "비옴" };
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function pill(label, short) {
+  if (label == null) return "";
+  const rank = RAIN_RANK[label] ?? 0;
+  return '<span class="pill r' + rank + '">' + esc(short ? (RAIN_SHORT[label] ?? label) : label) + "</span>";
+}
+function chips(title, items) {
+  const body = (items && items.length)
+    ? items.map(i => '<span class="chip">' + esc(i) + "</span>").join("")
+    : '<span class="none">해당 없음</span>';
+  return '<div><div class="chips-label">' + title + '</div><div class="chips">' + body + "</div></div>";
+}
+function half(name, part) {
+  if (!part) return "";
+  return '<div class="half">' +
+    '<div class="half-head"><span class="half-name">' + name + '</span>' +
+    '<span class="half-temp">' + esc(part["기준온도"]) + "°</span></div>" +
+    pill(part["강수"]) +
+    chips("외투", part["외투"]) +
+    chips("상의", part["상의"]) +
+    "</div>";
+}
+function dateLabel(iso) {
+  const [, m, d] = iso.split("-");
+  return Number(m) + "." + Number(d) + ".";
+}
+
+function render(region) {
+  // 지난 날짜는 숨김 (하루 3번 갱신 사이에도 오늘부터 보이도록)
+  const now = new Date();
+  const todayIso = now.getFullYear() + "-" +
+    String(now.getMonth() + 1).padStart(2, "0") + "-" +
+    String(now.getDate()).padStart(2, "0");
+  const days = (region["일자별"] || []).filter(d => d["날짜"] >= todayIso);
+  if (!days.length) {
+    document.getElementById("app").innerHTML = '<div class="empty">표시할 예보가 없어요.</div>';
+    return;
+  }
+  const lows = days.map(d => d["최저온도"]).filter(v => v != null);
+  const highs = days.map(d => d["최고온도"]).filter(v => v != null);
+  const gMin = Math.min(...lows), gMax = Math.max(...highs);
+  const span = Math.max(gMax - gMin, 1);
+
+  const today = days[0];
+  let html = "<header>" +
+    '<div class="eyebrow">네이버 4사 예보 비교 평균</div>' +
+    "<h1>" + esc(region["지역명"] || "") + "</h1>" +
+    '<div class="updated">' + esc(region["업데이트"] || "") + " 업데이트</div>" +
+    "</header>";
+
+  html += '<section class="card hero">' +
+    '<div class="hero-date"><strong>' + dateLabel(today["날짜"]) + " " + esc(today["요일"]) + '요일</strong>' +
+    (today["날짜"] === todayIso ? '<span class="today-tag">오늘</span>' : "") + "</div>" +
+    '<div class="hero-temps"><span class="lo">' + esc(today["최저온도"]) + '°</span><span class="slash">/</span><span class="hi">' + esc(today["최고온도"]) + '°</span>' +
+    '<span class="unit-note">최저 / 최고</span></div>' +
+    '<div class="halves">' + half("오전 9시", today["오전"]) + half("오후 1시", today["오후"]) + "</div>" +
+    "</section>";
+
+  html += '<section class="card days">';
+  for (const d of days.slice(1)) {
+    const lo = d["최저온도"], hi = d["최고온도"];
+    const left = ((lo - gMin) / span) * 100;
+    const width = Math.max(((hi - lo) / span) * 100, 4);
+    html += "<details>" +
+      "<summary>" +
+      '<span class="d-date"><span class="dd">' + dateLabel(d["날짜"]) + '</span><span class="wd">' + esc(d["요일"]) + '요일</span></span>' +
+      '<span class="d-range"><span class="lo">' + esc(lo) + '°</span>' +
+      '<span class="bar"><i style="left:' + left.toFixed(1) + "%;width:" + width.toFixed(1) + '%"></i></span>' +
+      '<span class="hi">' + esc(hi) + "°</span></span>" +
+      '<span class="d-rain">' + pill(d["오전"] && d["오전"]["강수"], true) + pill(d["오후"] && d["오후"]["강수"], true) + "</span>" +
+      "</summary>" +
+      '<div class="d-detail"><div class="halves">' + half("오전 9시", d["오전"]) + half("오후 1시", d["오후"]) + "</div></div>" +
+      "</details>";
+  }
+  html += "</section>";
+
+  html += '<p class="footnote">기상청·아큐웨더·웨더채널·웨더뉴스 4사 예보에서 최고·최저를 제외한 2개 평균. ' +
+    "강수 표시는 4사 강수확률의 중앙값 기준(30% 미만 안옴 · 60% 미만 가능성 낮음 · 70% 미만 있음 · 80% 미만 높음 · 이상 비옴). " +
+    "오전 기준온도는 최저온도 + 일교차의 45%로 추정한 9시 예상 기온. 날짜 줄을 누르면 옷차림이 열려요.</p>";
+
+  document.getElementById("app").innerHTML = html;
+}
+
+fetch("data.json?ts=" + Date.now())
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(render)
+  .catch(() => {
+    document.getElementById("app").innerHTML =
+      '<div class="empty">예보를 불러오지 못했어요.<br>잠시 후 새로고침 해주세요.</div>';
+  });
+</script>
+</body>
+</html>
