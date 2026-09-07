@@ -95,24 +95,20 @@ def rain_summary(probs, lead):
 
     base = median * MEDIAN_RATIO + weighted * (1 - MEDIAN_RATIO)
 
-    # Consensus 특수규칙 (A > B > C > D 순으로 우선 적용)
+    # Consensus 특수규칙 (A > B > C 순으로 우선 적용)
+    # 확률값을 조정하는 것은 3곳 이상의 합의가 있을 때뿐이다.
+    # 2:2로 갈린 경우는 확률(Base)을 조작하지 않는다 — 불확실성과 확률은 다른 축이므로
+    # 확률은 그대로 두고 일치도 쪽에서 "예보 크게 엇갈림"으로 표시한다.
     low20 = sum(1 for v in arr if v <= 20)
     high60 = sum(1 for v in arr if v >= 60)
     high80 = sum(1 for v in arr if v >= 80)
-    warning = None
     if low20 >= 3:                              # [A] 3곳 이상 20% 이하 → 최대 20%로 제한
         final = min(base, 20)
-        if max(arr) >= 40:                      # 소수의견은 삭제하지 않고 경고로 남김
-            outlier = max(vals, key=lambda k: vals[k])
-            warning = "%s만 %d%% 예보 (소수의견)" % (outlier, vals[outlier])
     elif high80 >= 3:                           # [B] 3곳 이상 80% 이상 → 최소 80%
         final = max(base, 80)
     elif high60 >= 3:                           # [C] 3곳 이상 60% 이상 → 최소 60% (80으로 올리지 않음)
         final = max(base, 60)
-    elif high60 == 2 and low20 == 2 and n == 4:  # [D] 2:2로 갈림 → 40~50%로 제한 + 불확실 표시
-        final = min(max(base, 40), 50)
-        warning = "예보 크게 엇갈림 / 강수 가능성 불확실"
-    else:                                       # [E] Base 그대로
+    else:                                       # [D] Base 그대로 (2:2 갈림 포함)
         final = base
 
     final = max(0, min(100, int(round(final))))
@@ -123,12 +119,27 @@ def rain_summary(probs, lead):
             label, short = lb, sh
             break
 
+    # 일치도: Spread(최고-최저)는 극단값 하나에 휘둘리는 지표라 그대로 쓰지 않는다.
+    # 3개가 20%p 이내로 뭉쳐 있고 하나만 40%p 이상 튀면 "3:1 소수의견"으로 보고,
+    # 일치도는 합의된 3개의 Spread로 계산하며 튄 값은 소수의견 경고로 남긴다.
+    warning = None
     spread = max(arr) - min(arr)
+    if n == 4:
+        outlier_key = max(vals, key=lambda k: abs(vals[k] - median))
+        trio = sorted(v for k, v in vals.items() if k != outlier_key)
+        trio_spread = trio[-1] - trio[0]
+        if trio_spread <= 20 and abs(vals[outlier_key] - trio[1]) >= 40:
+            spread = trio_spread
+            warning = "%s만 %d%% 예보 (소수의견)" % (outlier_key, vals[outlier_key])
+
     agr_code = agr_text = None
     for hi, code, text in AGREEMENT_BANDS:
         if spread <= hi:
             agr_code, agr_text = code, text
             break
+
+    if n == 4 and high60 == 2 and low20 == 2:   # 2:2 완전 갈림 → 일치도만 최하로
+        agr_code, agr_text = "VERY_LOW", "예보 크게 엇갈림"
 
     out = {"확률": final, "문구": label, "짧은문구": short,
            "일치도": agr_code, "일치도문구": agr_text}
