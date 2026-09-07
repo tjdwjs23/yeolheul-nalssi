@@ -10,6 +10,7 @@ GitHub Actions가 하루 3번(한국시간 6·12·18시) 실행한다.
 """
 import datetime
 import json
+import math
 import time
 import urllib.request
 
@@ -169,9 +170,41 @@ def clothes_at(temp):
     return [], []
 
 
-# 옷차림 기준온도: 일교차 대비 상승 비율 (오전 9시 / 오후 1시)
-AM_RATIO = 0.30  # 하루 상승폭의 약 30%
-PM_RATIO = 0.85  # 최고기온에 상당히 근접
+# 옷차림 기준온도: 일교차 대비 상승 비율
+# 오전 9시 비율은 고정값이 아니라 그날의 일출시각으로 계산한다:
+#   AM_RATIO = (9시 - 일출) / (15시 - 일출)   ← 15시 = 대략적인 일최고기온 도달 시각(thermal lag)
+# 일최저는 일출 무렵에 나타나므로, 9시 기온의 위치는 "일출 후 얼마나 지났느냐"가 결정한다.
+# 한여름(일출 5시대) ≈ 0.39, 한겨울(일출 7시대 후반) ≈ 0.20으로 자연스럽게 계절이 반영된다.
+AM_HOUR = 9        # 오전 기준 시각
+PEAK_HOUR = 15     # 일최고기온 도달 가정 시각
+AM_RATIO_MIN = 0.20
+AM_RATIO_MAX = 0.40
+PM_RATIO = 0.85    # 오후 1시: 최고기온에 상당히 근접 (고정)
+
+
+def sunrise_hour(lat, lon, date, tz=9):
+    """NOAA 근사식으로 일출 시각(현지시간, 시 단위 float)을 계산. 오차 수 분 이내."""
+    n = date.timetuple().tm_yday
+    g = 2 * math.pi / 365 * (n - 1)
+    eqtime = 229.18 * (0.000075 + 0.001868 * math.cos(g) - 0.032077 * math.sin(g)
+                       - 0.014615 * math.cos(2 * g) - 0.040849 * math.sin(2 * g))
+    decl = (0.006918 - 0.399912 * math.cos(g) + 0.070257 * math.sin(g)
+            - 0.006758 * math.cos(2 * g) + 0.000907 * math.sin(2 * g)
+            - 0.002697 * math.cos(3 * g) + 0.00148 * math.sin(3 * g))
+    lat_r = math.radians(lat)
+    cos_ha = (math.cos(math.radians(90.833)) / (math.cos(lat_r) * math.cos(decl))
+              - math.tan(lat_r) * math.tan(decl))
+    cos_ha = max(-1.0, min(1.0, cos_ha))
+    ha = math.degrees(math.acos(cos_ha))
+    minutes_utc = 720 - 4 * (lon + ha) - eqtime
+    return (minutes_utc / 60 + tz) % 24
+
+
+def am_ratio_for(lat, lon, date):
+    """일출 기반 오전 비율: (9시 - 일출) / (15시 - 일출), 0.20~0.40으로 제한."""
+    rise = sunrise_hour(lat, lon, date)
+    ratio = (AM_HOUR - rise) / (PEAK_HOUR - rise)
+    return max(AM_RATIO_MIN, min(AM_RATIO_MAX, ratio)), rise
 
 
 def ref_temp(tmin, tmax, ratio):
@@ -201,6 +234,8 @@ def scrape_region(region_code, kst_today):
     cr = data["results"]["choiceResult"]
     region = cr["selectedRegion~~1"]["naverRegion"]
     region_name = " ".join(filter(None, [region.get("lareaNm"), region.get("mareaNm"), region.get("sareaNm")]))
+    lat = region.get("latitude") or 37.5665   # 좌표가 없으면 서울 시청 기준
+    lon = region.get("longitude") or 126.978
     provider_map = cr["compareWeeklyFcast~~1"]["domesticWeeklyListMap"]
 
     by_date = {}
@@ -220,13 +255,15 @@ def scrape_region(region_code, kst_today):
         lead = max((day_date - kst_today).days, 0)
         tmin = avg_drop(e["min"])
         tmax = avg_drop(e["max"])
-        t_am = ref_temp(tmin, tmax, AM_RATIO)
+        am_ratio, rise = am_ratio_for(lat, lon, day_date)
+        t_am = ref_temp(tmin, tmax, am_ratio)
         t_pm = ref_temp(tmin, tmax, PM_RATIO)
         am_outer, am_top = clothes_at(t_am)
         pm_outer, pm_top = clothes_at(t_pm)
         days.append({
             "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
             "요일": e["day"],
+            "일출": "%02d:%02d" % (int(rise), int(rise % 1 * 60)),
             "최저온도": tmin, "최고온도": tmax,
             "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},
             "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
