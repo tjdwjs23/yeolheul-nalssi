@@ -57,6 +57,18 @@ header { margin-bottom: 16px; }
   color: var(--faint); text-transform: uppercase; margin-bottom: 2px;
 }
 h1 { font-size: 22px; font-weight: 700; margin: 0; line-height: 1.3; text-wrap: balance; }
+.region-select {
+  appearance: none; -webkit-appearance: none;
+  font: inherit; font-size: 22px; font-weight: 700; line-height: 1.3;
+  color: var(--ink); background: transparent; border: none; padding: 0 24px 0 0;
+  max-width: 100%; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 8px top 55%, right 2px top 55%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+.region-select:focus { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .updated { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
 .card {
@@ -194,7 +206,7 @@ function dateLabel(iso) {
   return Number(m) + "." + Number(d) + ".";
 }
 
-function render(region) {
+function render(region, updated, allRegions, selectedCode) {
   // 지난 날짜는 숨김 (하루 3번 갱신 사이에도 오늘부터 보이도록)
   const now = new Date();
   const todayIso = now.getFullYear() + "-" +
@@ -211,10 +223,15 @@ function render(region) {
   const span = Math.max(gMax - gMin, 1);
 
   const today = days[0];
+  let options = "";
+  for (const code of Object.keys(allRegions)) {
+    options += '<option value="' + esc(code) + '"' + (code === selectedCode ? " selected" : "") + ">" +
+      esc(allRegions[code]["지역명"]) + "</option>";
+  }
   let html = "<header>" +
     '<div class="eyebrow">네이버 4사 예보 비교 평균</div>' +
-    "<h1>" + esc(region["지역명"] || "") + "</h1>" +
-    '<div class="updated">' + esc(region["업데이트"] || "") + " 업데이트</div>" +
+    '<h1><select id="regionSel" class="region-select" aria-label="지역 선택">' + options + "</select></h1>" +
+    '<div class="updated">' + esc(updated || "") + " 업데이트</div>" +
     "</header>";
 
   html += '<section class="card hero">' +
@@ -249,11 +266,23 @@ function render(region) {
     "오전 기준온도는 최저온도 + 일교차의 45%로 추정한 9시 예상 기온. 날짜 줄을 누르면 옷차림이 열려요.</p>";
 
   document.getElementById("app").innerHTML = html;
+
+  document.getElementById("regionSel").addEventListener("change", e => {
+    const code = e.target.value;
+    try { localStorage.setItem("yeolheul-region", code); } catch (err) {}
+    render(allRegions[code], updated, allRegions, code);
+  });
 }
 
 fetch("data.json?ts=" + Date.now())
   .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-  .then(render)
+  .then(d => {
+    const regions = d["지역들"] || {};
+    let code = null;
+    try { code = localStorage.getItem("yeolheul-region"); } catch (err) {}
+    if (!code || !regions[code]) code = d["기본지역"];
+    render(regions[code], d["업데이트"], regions, code);
+  })
   .catch(() => {
     document.getElementById("app").innerHTML =
       '<div class="empty">예보를 불러오지 못했어요.<br>잠시 후 새로고침 해주세요.</div>';

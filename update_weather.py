@@ -15,7 +15,13 @@ import urllib.request
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36")
-REGION = "02135109"  # 경기도 성남시 분당구 삼평동
+
+# 조회할 지역 목록 (첫 번째가 기본 지역). 코드는 weather.naver.com/compare/{코드} 주소의 숫자.
+# 지역 추가: 네이버 날씨에서 해당 동네 비교 페이지를 열고 주소 끝 코드를 여기 붙이면 된다.
+REGIONS = [
+    "09680101",  # 서울특별시 강남구 역삼동
+    "02135109",  # 경기도 성남시 분당구 삼평동
+]
 
 # ==================================================
 # 강수확률 통합 설정 (Brier Score 기반 가중치 조정을 위해 분리)
@@ -157,56 +163,68 @@ def am_temp(tmin, tmax):
     return round(tmin + (tmax - tmin) * 0.45, 1)
 
 
-req = urllib.request.Request("https://weather.naver.com/compare/" + REGION,
-                             headers={"User-Agent": UA})
-html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
-marker = "var blockApiResult = "
-idx = html.find(marker)
-if idx < 0:
-    raise SystemExit("blockApiResult 없음 (페이지 구조 변경?)")
-data, _ = json.JSONDecoder().raw_decode(html, idx + len(marker))
-cr = data["results"]["choiceResult"]
-region = cr["selectedRegion~~1"]["naverRegion"]
-region_name = " ".join(filter(None, [region.get("lareaNm"), region.get("mareaNm"), region.get("sareaNm")]))
-provider_map = cr["compareWeeklyFcast~~1"]["domesticWeeklyListMap"]
+def scrape_region(region_code, kst_today):
+    """지역코드 하나를 스크래핑해 계산된 예보 dict를 반환."""
+    req = urllib.request.Request("https://weather.naver.com/compare/" + region_code,
+                                 headers={"User-Agent": UA})
+    html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
+    marker = "var blockApiResult = "
+    idx = html.find(marker)
+    if idx < 0:
+        raise SystemExit("blockApiResult 없음 (페이지 구조 변경?)")
+    data, _ = json.JSONDecoder().raw_decode(html, idx + len(marker))
+    cr = data["results"]["choiceResult"]
+    region = cr["selectedRegion~~1"]["naverRegion"]
+    region_name = " ".join(filter(None, [region.get("lareaNm"), region.get("mareaNm"), region.get("sareaNm")]))
+    provider_map = cr["compareWeeklyFcast~~1"]["domesticWeeklyListMap"]
 
-by_date = {}
-for provider, plist in provider_map.items():
-    for d in plist:
-        e = by_date.setdefault(d["aplYmd"], {"day": d.get("dayString"),
-                                             "min": [], "max": [], "am": {}, "pm": {}})
-        e["min"].append(d.get("minTmpr"))
-        e["max"].append(d.get("maxTmpr"))
-        e["am"][provider] = d.get("amRainProb")
-        e["pm"][provider] = d.get("pmRainProb")
+    by_date = {}
+    for provider, plist in provider_map.items():
+        for d in plist:
+            e = by_date.setdefault(d["aplYmd"], {"day": d.get("dayString"),
+                                                 "min": [], "max": [], "am": {}, "pm": {}})
+            e["min"].append(d.get("minTmpr"))
+            e["max"].append(d.get("maxTmpr"))
+            e["am"][provider] = d.get("amRainProb")
+            e["pm"][provider] = d.get("pmRainProb")
+
+    days = []
+    for ymd in sorted(by_date):
+        e = by_date[ymd]
+        day_date = datetime.date(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:]))
+        lead = max((day_date - kst_today).days, 0)
+        tmin = avg_drop(e["min"])
+        tmax = avg_drop(e["max"])
+        t_am = am_temp(tmin, tmax)
+        t_pm = tmax
+        am_outer, am_top = clothes_at(t_am)
+        pm_outer, pm_top = clothes_at(t_pm)
+        days.append({
+            "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
+            "요일": e["day"],
+            "최저온도": tmin, "최고온도": tmax,
+            "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},
+            "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
+        })
+
+    return {"지역코드": region_code, "지역명": region_name,
+            "제공사": sorted(provider_map.keys()), "일자별": days}
+
 
 kst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 kst_today = kst_now.date()
 
-days = []
-for ymd in sorted(by_date):
-    e = by_date[ymd]
-    day_date = datetime.date(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:]))
-    lead = max((day_date - kst_today).days, 0)
-    tmin = avg_drop(e["min"])
-    tmax = avg_drop(e["max"])
-    t_am = am_temp(tmin, tmax)
-    t_pm = tmax
-    am_outer, am_top = clothes_at(t_am)
-    pm_outer, pm_top = clothes_at(t_pm)
-    days.append({
-        "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
-        "요일": e["day"],
-        "최저온도": tmin, "최고온도": tmax,
-        "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},
-        "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
-    })
+regions = {}
+for code in REGIONS:
+    regions[code] = scrape_region(code, kst_today)
+    print("수집:", regions[code]["지역명"], len(regions[code]["일자별"]), "일치")
+    time.sleep(1)  # 네이버에 연속 요청 간 간격
 
 result = {
-    "지역코드": REGION, "지역명": region_name,
-    "제공사": sorted(provider_map.keys()), "일자별": days,
+    "기본지역": REGIONS[0],
+    "지역들": regions,
     "업데이트": kst_now.strftime("%Y-%m-%d %H:%M") + " KST",
 }
 with open("data.json", "w", encoding="utf-8") as f:
     json.dump(result, f, ensure_ascii=False, indent=1)
-print("저장됨:", region_name, len(days), "일치")
+print("저장됨:", len(regions), "개 지역")
