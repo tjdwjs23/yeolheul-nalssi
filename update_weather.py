@@ -175,10 +175,17 @@ PM_RATIO = 0.85  # 최고기온에 상당히 근접
 
 
 def ref_temp(tmin, tmax, ratio):
-    """기준온도 추정: 최저 + 일교차 × 비율."""
+    """기준온도 추정: 최저 + 일교차 × 비율.
+    표시는 0.5 단위 스냅: 소수 첫째 자리가 5 미만이면 내림, 5면 .5 유지, 5 초과면 올림."""
     if tmin is None or tmax is None:
         return tmin
-    return round(tmin + (tmax - tmin) * ratio, 1)
+    scaled = int(round((tmin + (tmax - tmin) * ratio) * 10))
+    whole, digit = divmod(scaled, 10)
+    if digit < 5:
+        return whole
+    if digit == 5:
+        return whole + 0.5
+    return whole + 1
 
 
 def scrape_region(region_code, kst_today):
