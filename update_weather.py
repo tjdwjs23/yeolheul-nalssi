@@ -19,8 +19,8 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
 # 조회할 지역 목록 (첫 번째가 기본 지역). 코드는 weather.naver.com/compare/{코드} 주소의 숫자.
 # 지역 추가: 네이버 날씨에서 해당 동네 비교 페이지를 열고 주소 끝 코드를 여기 붙이면 된다.
 REGIONS = [
+    "09650108",  # 서울 서초구 서초동 (교대역) — 기본
     "11237106",  # 인천 부평구 갈산동 (부평구청역)
-    "09650108",  # 서울 서초구 서초동 (교대역)
     "02135110",  # 경기 성남시 분당구 백현동 (판교역)
     "09140550",  # 서울 중구 명동 (명동역)
 ]
@@ -158,11 +158,16 @@ def clothes_at(temp):
     return [], []
 
 
-def am_temp(tmin, tmax):
-    """오전 9시 기준온도 추정: 최저 + 일교차의 45%."""
+# 옷차림 기준온도: 일교차 대비 상승 비율 (오전 9시 / 오후 1시)
+AM_RATIO = 0.30  # 하루 상승폭의 약 30%
+PM_RATIO = 0.85  # 최고기온에 상당히 근접
+
+
+def ref_temp(tmin, tmax, ratio):
+    """기준온도 추정: 최저 + 일교차 × 비율."""
     if tmin is None or tmax is None:
         return tmin
-    return round(tmin + (tmax - tmin) * 0.45, 1)
+    return round(tmin + (tmax - tmin) * ratio, 1)
 
 
 def scrape_region(region_code, kst_today):
@@ -197,8 +202,8 @@ def scrape_region(region_code, kst_today):
         lead = max((day_date - kst_today).days, 0)
         tmin = avg_drop(e["min"])
         tmax = avg_drop(e["max"])
-        t_am = am_temp(tmin, tmax)
-        t_pm = tmax
+        t_am = ref_temp(tmin, tmax, AM_RATIO)
+        t_pm = ref_temp(tmin, tmax, PM_RATIO)
         am_outer, am_top = clothes_at(t_am)
         pm_outer, pm_top = clothes_at(t_pm)
         days.append({
