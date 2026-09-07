@@ -2,7 +2,13 @@
 """
 네이버 날씨 비교 페이지를 스크래핑해 계산된 10일 예보를 data.json으로 저장.
 GitHub Actions가 하루 3번(한국시간 6·12·18시) 실행한다.
+
+강수확률 통합 방식 (단순 평균 사용 안 함):
+  Base = 중앙값 × 0.8 + 서비스별 신뢰도 가중평균 × 0.2
+  + Consensus 특수규칙(A~D)이 Base보다 우선
+  + 강수확률과 별개로 예보 일치도(Spread 기반)를 계산
 """
+import datetime
 import json
 import time
 import urllib.request
@@ -10,6 +16,35 @@ import urllib.request
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36")
 REGION = "02135109"  # 경기도 성남시 분당구 삼평동
+
+# ==================================================
+# 강수확률 통합 설정 (Brier Score 기반 가중치 조정을 위해 분리)
+# ==================================================
+
+# 예보시간(lead time, 오늘=0)별 서비스 가중치: (최소 lead, 최대 lead(None=무제한), 가중치)
+RAIN_WEIGHTS = [
+    (0, 2, {"KMA": 0.40, "TWC": 0.30, "WEATHERNEWS": 0.20, "ACCUWEATHER": 0.10}),
+    (3, None, {"KMA": 0.30, "TWC": 0.40, "WEATHERNEWS": 0.15, "ACCUWEATHER": 0.15}),
+]
+
+MEDIAN_RATIO = 0.8  # Base = Median×0.8 + WeightedMean×0.2
+
+# 최종 확률 → 문구 / 짧은문구: (상한(미포함), 문구, 짧은문구)
+RAIN_LABELS = [
+    (20, "비 가능성 매우 낮음", "거의 안 옴"),
+    (40, "비 가능성 낮음", "가능성 낮음"),
+    (60, "비 가능성 있음 / 불확실", "가능성 있음"),
+    (80, "비 올 가능성 높음", "가능성 높음"),
+    (101, "비 올 가능성 매우 높음", "비 유력"),
+]
+
+# 예보 일치도: Spread(최고-최저) 상한(포함) → (코드, 문구)
+AGREEMENT_BANDS = [
+    (20, "HIGH", "예보 일치도 높음"),
+    (40, "MEDIUM", "예보 일치도 보통"),
+    (60, "LOW", "예보 일치도 낮음"),
+    (100, "VERY_LOW", "예보 크게 엇갈림"),
+]
 
 # 기온(℃) 구간별 옷차림표: (하한, 상한(미포함), 외투, 상의)
 CLOTHES_BANDS = [
@@ -24,8 +59,78 @@ CLOTHES_BANDS = [
 ]
 
 
+def pick_weights(lead):
+    for lo, hi, weights in RAIN_WEIGHTS:
+        if lead >= lo and (hi is None or lead <= hi):
+            return weights
+    return RAIN_WEIGHTS[-1][2]
+
+
+def rain_summary(probs, lead):
+    """서비스별 강수확률 dict {서비스: 0~100} + lead(일) → 통합 강수 정보 dict."""
+    vals = {k: v for k, v in probs.items() if v is not None}
+    if not vals:
+        return None
+    arr = sorted(vals.values())
+    n = len(arr)
+
+    # 중앙값: 짝수 개면 가운데 두 값 평균
+    median = (arr[n // 2 - 1] + arr[n // 2]) / 2 if n % 2 == 0 else arr[n // 2]
+
+    # 가중평균 (누락 서비스가 있으면 가중치 재정규화)
+    weights = pick_weights(lead)
+    wsum = sum(weights.get(k, 0) for k in vals)
+    if wsum > 0:
+        weighted = sum(v * weights.get(k, 0) for k, v in vals.items()) / wsum
+    else:
+        weighted = sum(arr) / n
+
+    base = median * MEDIAN_RATIO + weighted * (1 - MEDIAN_RATIO)
+
+    # Consensus 특수규칙 (A > B > C > D 순으로 우선 적용)
+    low20 = sum(1 for v in arr if v <= 20)
+    high60 = sum(1 for v in arr if v >= 60)
+    high80 = sum(1 for v in arr if v >= 80)
+    warning = None
+    if low20 >= 3:                              # [A] 3곳 이상 20% 이하 → 최대 20%로 제한
+        final = min(base, 20)
+        if max(arr) >= 40:                      # 소수의견은 삭제하지 않고 경고로 남김
+            outlier = max(vals, key=lambda k: vals[k])
+            warning = "%s만 %d%% 예보 (소수의견)" % (outlier, vals[outlier])
+    elif high80 >= 3:                           # [B] 3곳 이상 80% 이상 → 최소 80%
+        final = max(base, 80)
+    elif high60 >= 3:                           # [C] 3곳 이상 60% 이상 → 최소 60% (80으로 올리지 않음)
+        final = max(base, 60)
+    elif high60 == 2 and low20 == 2 and n == 4:  # [D] 2:2로 갈림 → 40~50%로 제한 + 불확실 표시
+        final = min(max(base, 40), 50)
+        warning = "예보 크게 엇갈림 / 강수 가능성 불확실"
+    else:                                       # [E] Base 그대로
+        final = base
+
+    final = max(0, min(100, int(round(final))))
+
+    label = short = None
+    for hi, lb, sh in RAIN_LABELS:
+        if final < hi:
+            label, short = lb, sh
+            break
+
+    spread = max(arr) - min(arr)
+    agr_code = agr_text = None
+    for hi, code, text in AGREEMENT_BANDS:
+        if spread <= hi:
+            agr_code, agr_text = code, text
+            break
+
+    out = {"확률": final, "문구": label, "짧은문구": short,
+           "일치도": agr_code, "일치도문구": agr_text}
+    if warning:
+        out["경고"] = warning
+    return out
+
+
 def avg_drop(values):
-    """최고·최저 각 1개 제외 후 평균 (4개 값이면 중앙값과 동일)."""
+    """최고·최저 각 1개 제외 후 평균 (온도 통합용)."""
     vals = sorted(v for v in values if v is not None)
     if len(vals) > 1:
         vals = vals[1:]
@@ -34,21 +139,6 @@ def avg_drop(values):
     if not vals:
         return None
     return round(sum(vals) / len(vals), 1)
-
-
-def rain_label(values):
-    m = avg_drop(values)
-    if m is None:
-        return None
-    if m < 30:
-        return "안옴"
-    if m < 60:
-        return "가능성 낮음"
-    if m < 70:
-        return "비올 가능성 있음"
-    if m < 80:
-        return "비올 가능성 높음"
-    return "비옴"
 
 
 def clothes_at(temp):
@@ -84,15 +174,20 @@ by_date = {}
 for provider, plist in provider_map.items():
     for d in plist:
         e = by_date.setdefault(d["aplYmd"], {"day": d.get("dayString"),
-                                             "min": [], "max": [], "am": [], "pm": []})
+                                             "min": [], "max": [], "am": {}, "pm": {}})
         e["min"].append(d.get("minTmpr"))
         e["max"].append(d.get("maxTmpr"))
-        e["am"].append(d.get("amRainProb"))
-        e["pm"].append(d.get("pmRainProb"))
+        e["am"][provider] = d.get("amRainProb")
+        e["pm"][provider] = d.get("pmRainProb")
+
+kst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+kst_today = kst_now.date()
 
 days = []
 for ymd in sorted(by_date):
     e = by_date[ymd]
+    day_date = datetime.date(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:]))
+    lead = max((day_date - kst_today).days, 0)
     tmin = avg_drop(e["min"])
     tmax = avg_drop(e["max"])
     t_am = am_temp(tmin, tmax)
@@ -103,15 +198,14 @@ for ymd in sorted(by_date):
         "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
         "요일": e["day"],
         "최저온도": tmin, "최고온도": tmax,
-        "오전": {"기준온도": t_am, "강수": rain_label(e["am"]), "외투": am_outer, "상의": am_top},
-        "오후": {"기준온도": t_pm, "강수": rain_label(e["pm"]), "외투": pm_outer, "상의": pm_top},
+        "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},
+        "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
     })
 
-kst = time.gmtime(time.time() + 9 * 3600)
 result = {
     "지역코드": REGION, "지역명": region_name,
     "제공사": sorted(provider_map.keys()), "일자별": days,
-    "업데이트": time.strftime("%Y-%m-%d %H:%M", kst) + " KST",
+    "업데이트": kst_now.strftime("%Y-%m-%d %H:%M") + " KST",
 }
 with open("data.json", "w", encoding="utf-8") as f:
     json.dump(result, f, ensure_ascii=False, indent=1)
