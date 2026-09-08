@@ -3,313 +3,2009 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F5F7FA">
+
 <title>열흘날씨</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+
+<link
+  rel="stylesheet"
+  as="style"
+  crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+/>
+
 <style>
+
+/* =========================================================
+   DESIGN TOKENS
+========================================================= */
+
 :root {
-  --ground: #F3F6F9;
-  --card: #FFFFFF;
-  --line: #E2E9F0;
-  --ink: #17222D;
-  --muted: #5E7183;
-  --faint: #90A2B3;
-  --accent: #2B6FC9;
-  --accent-soft: #E3EEFB;
-  --warm: #D96A2B;
-  --cool: #3579B8;
-  --bar-track: #EAF0F5;
-  --pill-strong-ink: #FFFFFF;
-  --chip-bg: #F0F4F8;
+  color-scheme: light;
+
+  --ground: #F5F7FA;
+  --ground-top: #F9FAFC;
+
+  --surface: #FFFFFF;
+  --surface-soft: #F5F7F9;
+  --surface-hover: #F0F3F6;
+
+  --line: rgba(30, 45, 60, 0.075);
+
+  --ink: #171C21;
+  --muted: #65717D;
+  --faint: #98A2AC;
+
+  --accent: #3D78D3;
+  --accent-soft: #EDF4FF;
+  --accent-line: #D7E7FB;
+
+  --cool: #5885B2;
+  --warm: #D47A56;
+
+  --rain-neutral-bg: #EEF1F4;
+  --rain-soft-bg: #EAF3FF;
+  --rain-strong-bg: #3D78D3;
+
+  --warning: #C9733E;
+  --warning-soft: #FFF3EA;
+
+  --shadow:
+    0 1px 2px rgba(20, 30, 40, 0.02),
+    0 8px 28px rgba(20, 30, 40, 0.045);
+
+  --radius-xl: 24px;
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 9px;
 }
+
+
+/* =========================================================
+   DARK MODE
+========================================================= */
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #0F151C;
-    --card: #18212B;
-    --line: #26313D;
-    --ink: #E7EDF3;
-    --muted: #8CA0B3;
-    --faint: #64788A;
-    --accent: #6FA8E8;
-    --accent-soft: #1F3450;
-    --warm: #E8925C;
-    --cool: #6FB1DC;
-    --bar-track: #212C38;
-    --pill-strong-ink: #0F151C;
-    --chip-bg: #202B36;
+    color-scheme: dark;
+
+    --ground: #0E1217;
+    --ground-top: #11161C;
+
+    --surface: #171D24;
+    --surface-soft: #1D242C;
+    --surface-hover: #222A33;
+
+    --line: rgba(255, 255, 255, 0.07);
+
+    --ink: #EDF1F5;
+    --muted: #A0ACB8;
+    --faint: #6F7C88;
+
+    --accent: #79A9E8;
+    --accent-soft: #20344E;
+    --accent-line: #294566;
+
+    --cool: #79A7D3;
+    --warm: #E69670;
+
+    --rain-neutral-bg: #242D36;
+    --rain-soft-bg: #203650;
+    --rain-strong-bg: #79A9E8;
+
+    --warning: #E99A69;
+    --warning-soft: #33251D;
+
+    --shadow:
+      0 1px 2px rgba(0, 0, 0, 0.12),
+      0 10px 30px rgba(0, 0, 0, 0.12);
   }
 }
-* { box-sizing: border-box; }
+
+
+/* =========================================================
+   BASE
+========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  background: var(--ground);
+  min-height: 100vh;
+
+  background:
+    linear-gradient(
+      180deg,
+      var(--ground-top) 0,
+      var(--ground) 240px
+    );
+
   color: var(--ink);
-  font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+
+  font-family:
+    "Pretendard",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    "Malgun Gothic",
+    sans-serif;
+
   font-size: 15px;
   line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-.wrap { max-width: 440px; margin: 0 auto; padding: 20px 16px 48px; }
 
-header { margin-bottom: 16px; }
-.eyebrow {
-  font-size: 11px; font-weight: 500; letter-spacing: 0.08em;
-  color: var(--faint); text-transform: uppercase; margin-bottom: 2px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-h1 { font-size: 22px; font-weight: 700; margin: 0; line-height: 1.3; text-wrap: balance; }
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 480px;
+
+  margin: 0 auto;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    16px
+    calc(52px + env(safe-area-inset-bottom));
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+header {
+  padding: 2px 4px 0;
+  margin-bottom: 22px;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 8px;
+}
+
+.brand {
+  color: var(--accent);
+
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 25px;
+  padding: 3px 9px;
+
+  border-radius: 999px;
+
+  background: var(--accent-soft);
+  color: var(--accent);
+
+  font-size: 11px;
+  font-weight: 650;
+
+  white-space: nowrap;
+}
+
+h1 {
+  margin: 0;
+
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.045em;
+}
+
 .region-select {
-  appearance: none; -webkit-appearance: none;
-  font: inherit; font-size: 22px; font-weight: 700; line-height: 1.3;
-  color: var(--ink); background: transparent; border: none; padding: 0 24px 0 0;
-  max-width: 100%; cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: right 8px top 55%, right 2px top 55%;
-  background-size: 6px 6px, 6px 6px;
+  appearance: none;
+  -webkit-appearance: none;
+
+  display: block;
+
+  width: auto;
+  max-width: 100%;
+
+  margin: 0;
+
+  padding:
+    0
+    28px
+    0
+    0;
+
+  border: 0;
+  border-radius: 7px;
+
+  background-color: transparent;
+
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent 50%,
+      var(--muted) 50%
+    ),
+    linear-gradient(
+      135deg,
+      var(--muted) 50%,
+      transparent 50%
+    );
+
+  background-position:
+    right 9px top 52%,
+    right 3px top 52%;
+
+  background-size: 6px 6px;
   background-repeat: no-repeat;
+
+  color: var(--ink);
+
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.045em;
+
+  cursor: pointer;
 }
-.region-select:focus { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-.updated { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.region-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.updated {
+  margin-top: 7px;
+
+  color: var(--faint);
+
+  font-size: 12px;
+  font-weight: 450;
+}
+
+
+/* =========================================================
+   COMMON SURFACE
+========================================================= */
 
 .card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 14px;
   overflow: hidden;
-}
-.hero { padding: 18px 18px 16px; margin-bottom: 14px; }
-.hero-date { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
-.hero-date strong { font-size: 16px; font-weight: 700; }
-.today-tag {
-  font-size: 11px; font-weight: 700; color: var(--accent);
-  background: var(--accent-soft); border-radius: 99px; padding: 1px 9px;
-}
-.hero-temps {
-  display: flex; align-items: baseline; gap: 10px;
-  font-variant-numeric: tabular-nums; margin-bottom: 14px;
-}
-.hero-temps .lo { font-size: 34px; font-weight: 700; color: var(--cool); }
-.hero-temps .hi { font-size: 34px; font-weight: 700; color: var(--warm); }
-.hero-temps .slash { font-size: 22px; color: var(--faint); }
-.hero-temps .unit-note { font-size: 12px; color: var(--muted); margin-left: auto; text-align: right; }
 
-.halves { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.half {
-  border: 1px solid var(--line); border-radius: 10px; padding: 12px;
-  display: flex; flex-direction: column; gap: 8px;
+  border: 0;
+  border-radius: var(--radius-xl);
+
+  background: var(--surface);
+
+  box-shadow: var(--shadow);
 }
-.half-head { display: flex; align-items: center; justify-content: space-between; }
-.half-name { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
-.half-temp { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+
+/* =========================================================
+   HERO / TODAY
+========================================================= */
+
+.hero {
+  margin-bottom: 26px;
+  padding: 20px;
+}
+
+.hero-date {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  margin-bottom: 15px;
+}
+
+.hero-date strong {
+  font-size: 15px;
+  font-weight: 700;
+
+  letter-spacing: -0.02em;
+}
+
+.today-tag {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 3px 9px;
+
+  border-radius: 999px;
+
+  background: var(--accent-soft);
+  color: var(--accent);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+/* Main temperatures */
+
+.hero-temps {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 10px;
+
+  margin-bottom: 24px;
+
+  font-variant-numeric: tabular-nums;
+}
+
+.temp-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.temp-block strong {
+  display: block;
+
+  font-size: clamp(44px, 13vw, 56px);
+  font-weight: 720;
+  line-height: 0.95;
+
+  letter-spacing: -0.06em;
+}
+
+.temp-block small {
+  margin-top: 7px;
+
+  color: var(--faint);
+
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.temp-block .lo {
+  color: var(--cool);
+}
+
+.temp-block .hi {
+  color: var(--warm);
+}
+
+.hero-temps .dash {
+  margin-top: 6px;
+
+  color: var(--faint);
+
+  font-size: 29px;
+  font-weight: 300;
+
+  opacity: 0.58;
+}
+
+
+/* =========================================================
+   MORNING / AFTERNOON
+========================================================= */
+
+.halves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 10px;
+}
+
+.half {
+  min-width: 0;
+
+  padding: 14px;
+
+  border-radius: var(--radius-lg);
+
+  background: var(--surface-soft);
+}
+
+.half-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  margin-bottom: 10px;
+}
+
+.half-name {
+  color: var(--muted);
+
+  font-size: 12px;
+  font-weight: 650;
+
+  letter-spacing: -0.01em;
+}
+
+.half-temp {
+  font-size: 21px;
+  font-weight: 720;
+
+  letter-spacing: -0.035em;
+
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* =========================================================
+   RAIN PILLS
+========================================================= */
 
 .pill {
-  display: inline-block; font-size: 12px; font-weight: 500;
-  border-radius: 99px; padding: 2px 10px; white-space: nowrap;
-  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+
+  width: fit-content;
+  max-width: 100%;
+
+  min-height: 25px;
+
+  padding: 3px 9px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+
+  white-space: nowrap;
 }
-.pill.r0 { color: var(--muted); background: var(--chip-bg); }
-.pill.r1 { color: var(--accent); background: var(--accent-soft); }
-.pill.r2 { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-.pill.r3 { color: var(--pill-strong-ink); background: var(--accent); opacity: 0.85; }
-.pill.r4 { color: var(--pill-strong-ink); background: var(--accent); }
 
-.agree { font-size: 11px; color: var(--faint); }
-.agree.very-low { color: var(--warm); font-weight: 500; }
-.warn { font-size: 11px; color: var(--warm); line-height: 1.4; }
 
-.chips-label { font-size: 11px; font-weight: 700; color: var(--faint); margin-bottom: 3px; }
-.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+/* 0 ~ 19% */
+
+.pill.r0 {
+  background: var(--rain-neutral-bg);
+  color: var(--muted);
+}
+
+
+/* 20 ~ 59% */
+
+.pill.r1,
+.pill.r2 {
+  background: var(--rain-soft-bg);
+  color: var(--accent);
+}
+
+
+/* 60% + */
+
+.pill.r3,
+.pill.r4 {
+  background: var(--rain-strong-bg);
+  color: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pill.r3,
+  .pill.r4 {
+    color: #101820;
+  }
+}
+
+
+/* =========================================================
+   RAIN META
+========================================================= */
+
+.agree {
+  margin-top: 6px;
+
+  color: var(--faint);
+
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.agree.very-low {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.warn {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 5px;
+
+  margin-top: 6px;
+
+  color: var(--warning);
+
+  font-size: 10px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.warn-icon {
+  display: inline-grid;
+  place-items: center;
+
+  flex: 0 0 auto;
+
+  width: 14px;
+  height: 14px;
+
+  margin-top: 1px;
+
+  border-radius: 50%;
+
+  background: var(--warning-soft);
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+   OUTFIT
+========================================================= */
+
+.outfits {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+
+  margin-top: 12px;
+}
+
+.outfit-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+
+  gap: 6px;
+  align-items: start;
+}
+
+.outfit-label {
+  padding-top: 3px;
+
+  color: var(--faint);
+
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 4px;
+}
+
 .chip {
-  font-size: 12px; background: var(--chip-bg); color: var(--ink);
-  border-radius: 7px; padding: 2px 8px;
-}
-.chips .none { font-size: 12px; color: var(--faint); }
+  display: inline-flex;
+  align-items: center;
 
-.days { display: flex; flex-direction: column; }
-.days details { border-bottom: 1px solid var(--line); }
-.days details:last-child { border-bottom: none; }
+  min-height: 23px;
+
+  padding: 3px 7px;
+
+  border-radius: var(--radius-sm);
+
+  background: var(--surface);
+  color: var(--ink);
+
+  font-size: 11px;
+  font-weight: 520;
+  line-height: 1.2;
+}
+
+.chips .none {
+  padding-top: 3px;
+
+  color: var(--faint);
+
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   SECTION HEADER
+========================================================= */
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+
+  padding: 0 4px;
+
+  margin-bottom: 9px;
+}
+
+.section-title {
+  margin: 0;
+
+  font-size: 14px;
+  font-weight: 720;
+
+  letter-spacing: -0.025em;
+}
+
+.section-note {
+  color: var(--faint);
+
+  font-size: 11px;
+}
+
+
+/* =========================================================
+   FORECAST DAYS
+========================================================= */
+
+.forecast-section {
+  margin-bottom: 22px;
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+}
+
+.days details {
+  border-bottom: 1px solid var(--line);
+}
+
+.days details:last-child {
+  border-bottom: 0;
+}
+
 .days summary {
-  list-style: none; cursor: pointer; padding: 12px 16px;
-  display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center;
+  list-style: none;
+
+  display: grid;
+
+  grid-template-columns:
+    54px
+    minmax(0, 1fr)
+    88px
+    15px;
+
+  gap: 9px;
+  align-items: center;
+
+  min-height: 66px;
+
+  padding: 13px 17px;
+
+  cursor: pointer;
+
+  transition:
+    background-color 160ms ease,
+    transform 120ms ease;
+
+  -webkit-tap-highlight-color: transparent;
 }
-.days summary::-webkit-details-marker { display: none; }
-.d-date { display: flex; flex-direction: column; line-height: 1.25; }
-.d-date .dd { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.d-date .wd { font-size: 12px; color: var(--muted); }
-.d-range { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
-.d-range .lo { font-size: 14px; font-weight: 500; color: var(--cool); width: 30px; text-align: right; }
-.d-range .hi { font-size: 14px; font-weight: 700; color: var(--warm); width: 30px; }
-.bar { flex: 1; height: 5px; border-radius: 99px; background: var(--bar-track); position: relative; min-width: 40px; }
+
+.days summary::-webkit-details-marker {
+  display: none;
+}
+
+.days summary::marker {
+  display: none;
+}
+
+@media (hover: hover) {
+  .days summary:hover {
+    background: var(--surface-hover);
+  }
+}
+
+.days summary:active {
+  transform: scale(0.995);
+}
+
+
+/* date */
+
+.d-date {
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+
+  line-height: 1.25;
+}
+
+.d-date .dd {
+  font-size: 14px;
+  font-weight: 700;
+
+  letter-spacing: -0.02em;
+
+  font-variant-numeric: tabular-nums;
+}
+
+.d-date .wd {
+  margin-top: 2px;
+
+  color: var(--faint);
+
+  font-size: 11px;
+  font-weight: 500;
+}
+
+
+/* temperature range */
+
+.d-range {
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+
+  gap: 7px;
+
+  font-variant-numeric: tabular-nums;
+}
+
+.d-range .lo,
+.d-range .hi {
+  flex: 0 0 auto;
+
+  width: 29px;
+
+  font-size: 13px;
+
+  letter-spacing: -0.02em;
+}
+
+.d-range .lo {
+  color: var(--cool);
+
+  font-weight: 600;
+
+  text-align: right;
+}
+
+.d-range .hi {
+  color: var(--warm);
+
+  font-weight: 700;
+}
+
+.bar {
+  position: relative;
+
+  flex: 1;
+
+  min-width: 24px;
+  height: 5px;
+
+  overflow: hidden;
+
+  border-radius: 999px;
+
+  background: var(--surface-soft);
+}
+
 .bar i {
-  position: absolute; top: 0; bottom: 0; border-radius: 99px;
-  background: linear-gradient(90deg, var(--cool), var(--warm));
+  position: absolute;
+
+  top: 0;
+  bottom: 0;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--cool),
+      var(--warm)
+    );
 }
-.d-rain { display: flex; gap: 4px; }
-.d-rain .pill { font-size: 11px; padding: 1px 8px; }
-.d-detail { padding: 0 16px 14px; }
-.d-detail .halves { margin-top: 2px; }
+
+
+/* compact AM/PM rain */
+
+.d-rain {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 4px;
+
+  min-width: 0;
+}
+
+.rain-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  min-width: 0;
+
+  padding: 4px 3px;
+
+  border-radius: 8px;
+
+  background: var(--surface-soft);
+
+  line-height: 1.15;
+}
+
+.rain-mini .time {
+  color: var(--faint);
+
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.rain-mini .chance {
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+  font-weight: 700;
+
+  font-variant-numeric: tabular-nums;
+}
+
+.rain-mini.wet {
+  background: var(--accent-soft);
+}
+
+.rain-mini.wet .chance {
+  color: var(--accent);
+}
+
+
+/* chevron */
+
+.chevron {
+  position: relative;
+
+  width: 14px;
+  height: 14px;
+
+  opacity: 0.55;
+
+  transition: transform 180ms ease;
+}
+
+.chevron::before {
+  content: "";
+
+  position: absolute;
+
+  width: 6px;
+  height: 6px;
+
+  top: 2px;
+  left: 3px;
+
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+
+  transform: rotate(45deg);
+}
+
+.days details[open] .chevron {
+  transform: rotate(180deg);
+}
+
+
+/* expanded detail */
+
+.d-detail {
+  padding:
+    0
+    17px
+    17px;
+}
+
+.d-detail .halves {
+  padding-top: 2px;
+}
+
+
+/* =========================================================
+   FORECAST INFO / FOOTNOTE
+========================================================= */
+
+.info-card {
+  margin-top: 22px;
+
+  padding: 18px;
+
+  border-radius: var(--radius-lg);
+
+  background: var(--surface-soft);
+}
+
+.info-title {
+  margin-bottom: 12px;
+
+  color: var(--ink);
+
+  font-size: 13px;
+  font-weight: 720;
+
+  letter-spacing: -0.02em;
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: 9px;
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+
+  gap: 8px;
+
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.info-row strong {
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.info-row span {
+  color: var(--faint);
+}
+
+
+/* calculation details */
+
+.footnote-detail {
+  margin-top: 14px;
+
+  padding-top: 13px;
+
+  border-top: 1px solid var(--line);
+}
+
+.footnote-detail > summary {
+  list-style: none;
+
+  position: relative;
+
+  width: fit-content;
+
+  padding-right: 18px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 650;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color: transparent;
+}
+
+.footnote-detail > summary::-webkit-details-marker {
+  display: none;
+}
+
+.footnote-detail > summary::after {
+  content: "";
+
+  position: absolute;
+
+  top: 4px;
+  right: 2px;
+
+  width: 5px;
+  height: 5px;
+
+  border-right: 1.5px solid var(--faint);
+  border-bottom: 1.5px solid var(--faint);
+
+  transform: rotate(45deg);
+
+  transition: transform 180ms ease;
+}
+
+.footnote-detail[open] > summary::after {
+  transform: translateY(3px) rotate(225deg);
+}
+
+.detail-body {
+  padding-top: 10px;
+}
+
+.detail-body p {
+  margin:
+    0
+    0
+    8px;
+
+  color: var(--faint);
+
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.detail-body p:last-child {
+  margin-bottom: 0;
+}
+
+.footnote-guide {
+  margin-top: 14px;
+
+  color: var(--faint);
+
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   EMPTY / ERROR
+========================================================= */
 
 .empty {
-  text-align: center; color: var(--muted); padding: 60px 20px;
+  display: grid;
+  place-items: center;
+
+  min-height: 60vh;
+
+  padding: 60px 20px;
+
+  color: var(--muted);
+
+  text-align: center;
+
   font-size: 14px;
+  line-height: 1.7;
 }
-.footnote { font-size: 11px; color: var(--faint); margin-top: 14px; line-height: 1.6; }
+
+
+/* =========================================================
+   SMALL PHONES
+========================================================= */
+
+@media (max-width: 390px) {
+
+  .wrap {
+    padding-left: 13px;
+    padding-right: 13px;
+  }
+
+  .hero {
+    padding: 17px;
+  }
+
+  .half {
+    padding: 12px;
+  }
+
+  .halves {
+    gap: 8px;
+  }
+
+  .hero-temps {
+    margin-bottom: 20px;
+  }
+
+  .days summary {
+    grid-template-columns:
+      48px
+      minmax(0, 1fr)
+      76px
+      13px;
+
+    gap: 7px;
+
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .d-detail {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .rain-mini .time {
+    font-size: 7px;
+  }
+
+  .rain-mini .chance {
+    font-size: 9px;
+  }
+
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+}
+
 </style>
 </head>
+
+
 <body>
+
 <div class="wrap">
-  <div id="app"><div class="empty">불러오는 중…</div></div>
+  <div id="app">
+    <div class="empty">
+      불러오는 중…
+    </div>
+  </div>
 </div>
 
+
 <script>
+
+/* =========================================================
+   UTILS
+========================================================= */
+
 function esc(s) {
-  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  return String(s).replace(
+    /[&<>"]/g,
+    c => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;"
+    }[c])
+  );
 }
+
+
+/* =========================================================
+   RAIN
+========================================================= */
+
 function rainRank(p) {
-  return p < 20 ? 0 : p < 40 ? 1 : p < 60 ? 2 : p < 80 ? 3 : 4;
+  return p < 20
+    ? 0
+    : p < 40
+      ? 1
+      : p < 60
+        ? 2
+        : p < 80
+          ? 3
+          : 4;
 }
-function pill(rain, short) {
-  if (rain == null || rain["확률"] == null) return "";
-  const rank = rainRank(rain["확률"]);
-  const text = short ? rain["짧은문구"] : rain["확률"] + "% · " + rain["짧은문구"];
-  return '<span class="pill r' + rank + '">' + esc(text) + "</span>";
-}
-function rainMeta(rain) {
-  if (rain == null) return "";
-  let html = "";
-  if (rain["일치도문구"]) {
-    html += '<div class="agree' + (rain["일치도"] === "VERY_LOW" ? " very-low" : "") + '">' +
-      esc(rain["일치도문구"]) + "</div>";
+
+
+function pill(rain) {
+
+  if (
+    rain == null ||
+    rain["확률"] == null
+  ) {
+    return "";
   }
-  if (rain["경고"]) html += '<div class="warn">⚠ ' + esc(rain["경고"]) + "</div>";
+
+  const rank = rainRank(rain["확률"]);
+
+  const shortText =
+    rain["짧은문구"]
+      ? " · " + esc(rain["짧은문구"])
+      : "";
+
+  return (
+    '<span class="pill r' +
+    rank +
+    '">' +
+    esc(rain["확률"]) +
+    "%" +
+    shortText +
+    "</span>"
+  );
+}
+
+
+function rainMini(name, rain) {
+
+  if (
+    rain == null ||
+    rain["확률"] == null
+  ) {
+    return (
+      '<span class="rain-mini">' +
+        '<span class="time">' +
+          esc(name) +
+        '</span>' +
+        '<span class="chance">—</span>' +
+      '</span>'
+    );
+  }
+
+  const wet =
+    Number(rain["확률"]) >= 30
+      ? " wet"
+      : "";
+
+  return (
+    '<span class="rain-mini' +
+    wet +
+    '">' +
+
+      '<span class="time">' +
+        esc(name) +
+      '</span>' +
+
+      '<span class="chance">' +
+        esc(rain["확률"]) +
+        "%" +
+      '</span>' +
+
+    '</span>'
+  );
+}
+
+
+function rainMeta(rain) {
+
+  if (rain == null) {
+    return "";
+  }
+
+  let html = "";
+
+  if (rain["일치도문구"]) {
+
+    html +=
+      '<div class="agree' +
+      (
+        rain["일치도"] === "VERY_LOW"
+          ? " very-low"
+          : ""
+      ) +
+      '">' +
+      esc(rain["일치도문구"]) +
+      "</div>";
+  }
+
+  if (rain["경고"]) {
+
+    html +=
+      '<div class="warn">' +
+        '<span class="warn-icon">!</span>' +
+        '<span>' +
+          esc(rain["경고"]) +
+        '</span>' +
+      '</div>';
+  }
+
   return html;
 }
-function chips(title, items) {
-  const body = (items && items.length)
-    ? items.map(i => '<span class="chip">' + esc(i) + "</span>").join("")
-    : '<span class="none">해당 없음</span>';
-  return '<div><div class="chips-label">' + title + '</div><div class="chips">' + body + "</div></div>";
-}
-function half(name, part) {
-  if (!part) return "";
-  return '<div class="half">' +
-    '<div class="half-head"><span class="half-name">' + name + '</span>' +
-    '<span class="half-temp">' + esc(part["기준온도"]) + "°</span></div>" +
-    pill(part["강수"]) +
-    rainMeta(part["강수"]) +
-    chips("외투", part["외투"]) +
-    chips("상의", part["상의"]) +
-    "</div>";
-}
-function dateLabel(iso) {
-  const [, m, d] = iso.split("-");
-  return Number(m) + "." + Number(d) + ".";
+
+
+/* =========================================================
+   OUTFIT
+========================================================= */
+
+function outfitRow(title, items) {
+
+  const body =
+    items && items.length
+      ? items
+          .map(
+            item =>
+              '<span class="chip">' +
+              esc(item) +
+              "</span>"
+          )
+          .join("")
+      : '<span class="none">없음</span>';
+
+  return (
+    '<div class="outfit-row">' +
+
+      '<span class="outfit-label">' +
+        esc(title) +
+      '</span>' +
+
+      '<div class="chips">' +
+        body +
+      '</div>' +
+
+    '</div>'
+  );
 }
 
-function render(region, updated, allRegions, selectedCode) {
-  // 지난 날짜는 숨김 (하루 3번 갱신 사이에도 오늘부터 보이도록)
-  const now = new Date();
-  const todayIso = now.getFullYear() + "-" +
-    String(now.getMonth() + 1).padStart(2, "0") + "-" +
-    String(now.getDate()).padStart(2, "0");
-  const days = (region["일자별"] || []).filter(d => d["날짜"] >= todayIso);
-  if (!days.length) {
-    document.getElementById("app").innerHTML = '<div class="empty">표시할 예보가 없어요.</div>';
+
+/* =========================================================
+   MORNING / AFTERNOON CARD
+========================================================= */
+
+function half(name, part) {
+
+  if (!part) {
+    return "";
+  }
+
+  const temp =
+    part["기준온도"] != null
+      ? esc(part["기준온도"]) + "°"
+      : "—";
+
+  return (
+    '<div class="half">' +
+
+      '<div class="half-head">' +
+
+        '<span class="half-name">' +
+          esc(name) +
+        '</span>' +
+
+        '<span class="half-temp">' +
+          temp +
+        '</span>' +
+
+      '</div>' +
+
+      pill(part["강수"]) +
+
+      rainMeta(part["강수"]) +
+
+      '<div class="outfits">' +
+        outfitRow("외투", part["외투"]) +
+        outfitRow("상의", part["상의"]) +
+      '</div>' +
+
+    '</div>'
+  );
+}
+
+
+/* =========================================================
+   DATE
+========================================================= */
+
+function dateLabel(iso) {
+
+  const [, m, d] =
+    iso.split("-");
+
+  return (
+    Number(m) +
+    "." +
+    Number(d)
+  );
+}
+
+
+/* =========================================================
+   RENDER
+========================================================= */
+
+function render(
+  region,
+  updated,
+  allRegions,
+  selectedCode
+) {
+
+  if (!region) {
+
+    document.getElementById("app").innerHTML =
+      '<div class="empty">' +
+        '지역 정보를 찾을 수 없어요.' +
+      '</div>';
+
     return;
   }
-  const lows = days.map(d => d["최저온도"]).filter(v => v != null);
-  const highs = days.map(d => d["최고온도"]).filter(v => v != null);
-  const gMin = Math.min(...lows), gMax = Math.max(...highs);
-  const span = Math.max(gMax - gMin, 1);
 
-  const today = days[0];
+
+  /* -------------------------------------------------------
+     오늘 날짜
+     갱신 주기 사이에도 지난 날짜가 표시되지 않도록 필터링
+  ------------------------------------------------------- */
+
+  const now = new Date();
+
+  const todayIso =
+    now.getFullYear() +
+    "-" +
+    String(
+      now.getMonth() + 1
+    ).padStart(2, "0") +
+    "-" +
+    String(
+      now.getDate()
+    ).padStart(2, "0");
+
+
+  const days =
+    (region["일자별"] || [])
+      .filter(
+        d =>
+          d["날짜"] >= todayIso
+      );
+
+
+  if (!days.length) {
+
+    document.getElementById("app").innerHTML =
+      '<div class="empty">' +
+        '표시할 예보가 없어요.' +
+      '</div>';
+
+    return;
+  }
+
+
+  /* -------------------------------------------------------
+     전체 기간 온도 스케일
+  ------------------------------------------------------- */
+
+  const lows =
+    days
+      .map(d => d["최저온도"])
+      .filter(v => v != null);
+
+
+  const highs =
+    days
+      .map(d => d["최고온도"])
+      .filter(v => v != null);
+
+
+  const gMin =
+    Math.min(...lows);
+
+
+  const gMax =
+    Math.max(...highs);
+
+
+  const span =
+    Math.max(
+      gMax - gMin,
+      1
+    );
+
+
+  const today =
+    days[0];
+
+
+  /* -------------------------------------------------------
+     지역 선택
+  ------------------------------------------------------- */
+
   let options = "";
-  for (const code of Object.keys(allRegions)) {
-    options += '<option value="' + esc(code) + '"' + (code === selectedCode ? " selected" : "") + ">" +
-      esc(allRegions[code]["지역명"]) + "</option>";
+
+  for (
+    const code
+    of Object.keys(allRegions)
+  ) {
+
+    options +=
+      '<option value="' +
+      esc(code) +
+      '"' +
+      (
+        code === selectedCode
+          ? " selected"
+          : ""
+      ) +
+      ">" +
+      esc(
+        allRegions[code]["지역명"]
+      ) +
+      "</option>";
   }
-  let html = "<header>" +
-    '<div class="eyebrow">네이버 4사 예보 비교 평균</div>' +
-    '<h1><select id="regionSel" class="region-select" aria-label="지역 선택">' + options + "</select></h1>" +
-    '<div class="updated">' + esc(updated || "") + " 업데이트</div>" +
-    "</header>";
 
-  html += '<section class="card hero">' +
-    '<div class="hero-date"><strong>' + dateLabel(today["날짜"]) + " " + esc(today["요일"]) + '요일</strong>' +
-    (today["날짜"] === todayIso ? '<span class="today-tag">오늘</span>' : "") + "</div>" +
-    '<div class="hero-temps"><span class="lo">' + esc(today["최저온도"]) + '°</span><span class="slash">/</span><span class="hi">' + esc(today["최고온도"]) + '°</span>' +
-    '<span class="unit-note">최저 / 최고</span></div>' +
-    '<div class="halves">' + half("오전 9시", today["오전"]) + half("오후 1시", today["오후"]) + "</div>" +
-    "</section>";
 
-  html += '<section class="card days">';
-  for (const d of days.slice(1)) {
-    const lo = d["최저온도"], hi = d["최고온도"];
-    const left = ((lo - gMin) / span) * 100;
-    const width = Math.max(((hi - lo) / span) * 100, 4);
-    html += "<details>" +
-      "<summary>" +
-      '<span class="d-date"><span class="dd">' + dateLabel(d["날짜"]) + '</span><span class="wd">' + esc(d["요일"]) + '요일</span></span>' +
-      '<span class="d-range"><span class="lo">' + esc(lo) + '°</span>' +
-      '<span class="bar"><i style="left:' + left.toFixed(1) + "%;width:" + width.toFixed(1) + '%"></i></span>' +
-      '<span class="hi">' + esc(hi) + "°</span></span>" +
-      '<span class="d-rain">' + pill(d["오전"] && d["오전"]["강수"], true) + pill(d["오후"] && d["오후"]["강수"], true) + "</span>" +
-      "</summary>" +
-      '<div class="d-detail"><div class="halves">' + half("오전 9시", d["오전"]) + half("오후 1시", d["오후"]) + "</div></div>" +
-      "</details>";
+  /* =======================================================
+     HEADER
+  ======================================================= */
+
+  let html =
+    '<header>' +
+
+      '<div class="header-top">' +
+
+        '<span class="brand">' +
+          '열흘날씨' +
+        '</span>' +
+
+        '<span class="source-badge">' +
+          '4사 통합 예보' +
+        '</span>' +
+
+      '</div>' +
+
+      '<h1>' +
+
+        '<select ' +
+          'id="regionSel" ' +
+          'class="region-select" ' +
+          'aria-label="지역 선택">' +
+
+          options +
+
+        '</select>' +
+
+      '</h1>' +
+
+      '<div class="updated">' +
+        esc(updated || "") +
+        " 업데이트" +
+      '</div>' +
+
+    '</header>';
+
+
+  /* =======================================================
+     TODAY HERO
+  ======================================================= */
+
+  html +=
+    '<section class="card hero">' +
+
+      '<div class="hero-date">' +
+
+        '<strong>' +
+          dateLabel(today["날짜"]) +
+          " · " +
+          esc(today["요일"]) +
+          "요일" +
+        '</strong>' +
+
+        (
+          today["날짜"] === todayIso
+            ? '<span class="today-tag">오늘</span>'
+            : ""
+        ) +
+
+      '</div>' +
+
+
+      '<div class="hero-temps">' +
+
+        '<div class="temp-block">' +
+
+          '<strong class="lo">' +
+            esc(today["최저온도"]) +
+            '°' +
+          '</strong>' +
+
+          '<small>최저</small>' +
+
+        '</div>' +
+
+        '<span class="dash">—</span>' +
+
+        '<div class="temp-block">' +
+
+          '<strong class="hi">' +
+            esc(today["최고온도"]) +
+            '°' +
+          '</strong>' +
+
+          '<small>최고</small>' +
+
+        '</div>' +
+
+      '</div>' +
+
+
+      '<div class="halves">' +
+
+        half(
+          "오전 9시",
+          today["오전"]
+        ) +
+
+        half(
+          "오후 1시",
+          today["오후"]
+        ) +
+
+      '</div>' +
+
+    '</section>';
+
+
+  /* =======================================================
+     NEXT DAYS
+  ======================================================= */
+
+  const futureDays =
+    days.slice(1);
+
+
+  if (futureDays.length) {
+
+    html +=
+      '<section class="forecast-section">' +
+
+        '<div class="section-head">' +
+
+          '<h2 class="section-title">' +
+            '앞으로 ' +
+            futureDays.length +
+            '일' +
+          '</h2>' +
+
+          '<span class="section-note">' +
+            '눌러서 옷차림 보기' +
+          '</span>' +
+
+        '</div>' +
+
+        '<div class="card days">';
+
+
+    for (
+      const d
+      of futureDays
+    ) {
+
+      const lo =
+        d["최저온도"];
+
+
+      const hi =
+        d["최고온도"];
+
+
+      const left =
+        (
+          (
+            lo - gMin
+          ) / span
+        ) * 100;
+
+
+      const width =
+        Math.max(
+          (
+            (
+              hi - lo
+            ) / span
+          ) * 100,
+          4
+        );
+
+
+      html +=
+
+        '<details>' +
+
+          '<summary>' +
+
+
+            /* DATE */
+
+            '<span class="d-date">' +
+
+              '<span class="dd">' +
+                dateLabel(
+                  d["날짜"]
+                ) +
+              '</span>' +
+
+              '<span class="wd">' +
+                esc(
+                  d["요일"]
+                ) +
+                '요일' +
+              '</span>' +
+
+            '</span>' +
+
+
+            /* TEMP RANGE */
+
+            '<span class="d-range">' +
+
+              '<span class="lo">' +
+                esc(lo) +
+                '°' +
+              '</span>' +
+
+              '<span class="bar">' +
+
+                '<i style="' +
+                  'left:' +
+                  left.toFixed(1) +
+                  "%;" +
+                  'width:' +
+                  width.toFixed(1) +
+                  '%">' +
+                '</i>' +
+
+              '</span>' +
+
+              '<span class="hi">' +
+                esc(hi) +
+                '°' +
+              '</span>' +
+
+            '</span>' +
+
+
+            /* RAIN */
+
+            '<span class="d-rain">' +
+
+              rainMini(
+                "오전",
+                d["오전"] &&
+                d["오전"]["강수"]
+              ) +
+
+              rainMini(
+                "오후",
+                d["오후"] &&
+                d["오후"]["강수"]
+              ) +
+
+            '</span>' +
+
+
+            '<span class="chevron" aria-hidden="true"></span>' +
+
+
+          '</summary>' +
+
+
+          /* DETAIL */
+
+          '<div class="d-detail">' +
+
+            '<div class="halves">' +
+
+              half(
+                "오전 9시",
+                d["오전"]
+              ) +
+
+              half(
+                "오후 1시",
+                d["오후"]
+              ) +
+
+            '</div>' +
+
+          '</div>' +
+
+
+        '</details>';
+    }
+
+
+    html +=
+        '</div>' +
+      '</section>';
   }
-  html += "</section>";
 
-  html += `
-      <div class="footnote">
-        <div><strong>🌡️ 온도</strong> 4사 예보 중 극단값을 제외한 평균</div>
-        <div><strong>🌧️ 강수</strong> 중앙값 중심으로 4사 신뢰도·합의도 반영</div>
-        <div><strong>👕 옷차림</strong> 오전 9시·오후 1시 예상온도 기준</div>
-    
-        <details class="footnote-detail">
-          <summary>계산 기준 보기</summary>
-          <p>
-            온도는 기상청·아큐웨더·웨더채널·웨더뉴스 4사 예보에서
-            최고·최저를 제외한 2개를 평균합니다.
-          </p>
-          <p>
-            강수확률은 4사 중앙값 80% + 서비스별 신뢰도 가중평균 20%로 통합하고,
-            Consensus와 최고·최저 확률 차이를 함께 반영합니다.
-          </p>
-          <p>
-            옷차림 기준온도는 오전 9시 = 최저 + 일교차 × 일출시각 기반 20~40%,
-            오후 1시 = 최저 + 일교차 × 85%로 추정합니다.
-          </p>
-        </details>
-    
-        <div class="footnote-guide">
-          날짜를 누르면 옷차림을 볼 수 있어요.
-        </div>
-      </div>
-    `;
 
-  document.getElementById("app").innerHTML = html;
+  /* =======================================================
+     FORECAST METHOD
+  ======================================================= */
 
-  document.getElementById("regionSel").addEventListener("change", e => {
-    const code = e.target.value;
-    try { localStorage.setItem("yeolheul-region", code); } catch (err) {}
-    render(allRegions[code], updated, allRegions, code);
-  });
+  html +=
+    '<section class="info-card">' +
+
+      '<div class="info-title">' +
+        '예보 기준' +
+      '</div>' +
+
+
+      '<div class="info-list">' +
+
+        '<div class="info-row">' +
+          '<strong>온도</strong>' +
+          '<span>' +
+            '4사 예보 중 극단값을 제외한 평균' +
+          '</span>' +
+        '</div>' +
+
+        '<div class="info-row">' +
+          '<strong>강수</strong>' +
+          '<span>' +
+            '중앙값 중심으로 서비스별 신뢰도와 합의도 반영' +
+          '</span>' +
+        '</div>' +
+
+        '<div class="info-row">' +
+          '<strong>옷차림</strong>' +
+          '<span>' +
+            '오전 9시·오후 1시 예상온도를 기준으로 추천' +
+          '</span>' +
+        '</div>' +
+
+      '</div>' +
+
+
+      '<details class="footnote-detail">' +
+
+        '<summary>' +
+          '계산 기준 자세히 보기' +
+        '</summary>' +
+
+        '<div class="detail-body">' +
+
+          '<p>' +
+            '온도는 기상청·아큐웨더·웨더채널·웨더뉴스 ' +
+            '4사 예보에서 최고·최저를 제외한 2개를 평균합니다.' +
+          '</p>' +
+
+          '<p>' +
+            '강수확률은 4사 중앙값 80% + 서비스별 신뢰도 ' +
+            '가중평균 20%로 통합하고, 4사 Consensus와 ' +
+            '최고·최저 확률 차이를 함께 반영합니다.' +
+          '</p>' +
+
+          '<p>' +
+            '옷차림 기준온도는 오전 9시 = 최저 + 일교차 × ' +
+            '일출시각 기반 20~40%, 오후 1시 = 최저 + ' +
+            '일교차 × 85%로 추정합니다.' +
+          '</p>' +
+
+        '</div>' +
+
+      '</details>' +
+
+
+      '<div class="footnote-guide">' +
+        '각 날짜를 누르면 오전·오후 강수와 추천 옷차림을 볼 수 있어요.' +
+      '</div>' +
+
+    '</section>';
+
+
+  /* =======================================================
+     INSERT
+  ======================================================= */
+
+  document
+    .getElementById("app")
+    .innerHTML = html;
+
+
+  /* =======================================================
+     REGION EVENT
+  ======================================================= */
+
+  document
+    .getElementById("regionSel")
+    .addEventListener(
+      "change",
+      e => {
+
+        const code =
+          e.target.value;
+
+
+        try {
+
+          localStorage.setItem(
+            "yeolheul-region",
+            code
+          );
+
+        } catch (err) {}
+
+
+        render(
+          allRegions[code],
+          updated,
+          allRegions,
+          code
+        );
+      }
+    );
 }
 
-fetch("data.json?ts=" + Date.now())
-  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d => {
-    const regions = d["지역들"] || {};
-    let code = null;
-    try { code = localStorage.getItem("yeolheul-region"); } catch (err) {}
-    if (!code || !regions[code]) code = d["기본지역"];
-    render(regions[code], d["업데이트"], regions, code);
-  })
-  .catch(() => {
-    document.getElementById("app").innerHTML =
-      '<div class="empty">예보를 불러오지 못했어요.<br>잠시 후 새로고침 해주세요.</div>';
-  });
+
+/* =========================================================
+   FETCH DATA
+========================================================= */
+
+fetch(
+  "data.json?ts=" +
+  Date.now()
+)
+
+  .then(
+    r => {
+
+      if (!r.ok) {
+        throw new Error(
+          r.status
+        );
+      }
+
+      return r.json();
+    }
+  )
+
+  .then(
+    d => {
+
+      const regions =
+        d["지역들"] || {};
+
+
+      let code = null;
+
+
+      try {
+
+        code =
+          localStorage.getItem(
+            "yeolheul-region"
+          );
+
+      } catch (err) {}
+
+
+      if (
+        !code ||
+        !regions[code]
+      ) {
+
+        code =
+          d["기본지역"];
+      }
+
+
+      render(
+        regions[code],
+        d["업데이트"],
+        regions,
+        code
+      );
+    }
+  )
+
+  .catch(
+    () => {
+
+      document
+        .getElementById("app")
+        .innerHTML =
+
+        '<div class="empty">' +
+          '예보를 불러오지 못했어요.<br>' +
+          '잠시 후 새로고침해 주세요.' +
+        '</div>';
+    }
+  );
+
 </script>
+
 </body>
 </html>
