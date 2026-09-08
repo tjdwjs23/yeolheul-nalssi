@@ -260,10 +260,15 @@ function render(region, updated, allRegions, selectedCode) {
   }
   html += "</section>";
 
-  html += '<p class="footnote">온도는 기상청·아큐웨더·웨더채널·웨더뉴스 4사 예보에서 최고·최저를 제외한 2개 평균. ' +
-    "강수확률은 4사 중앙값 80% + 서비스별 신뢰도 가중평균 20%로 통합하고, 4사 합의(Consensus) 규칙과 " +
-    "예보 일치도(최고-최저 확률 차이)를 함께 반영. " +
-    "옷차림 기준온도는 오전 9시 = 최저 + 일교차×(일출시각 기반 20~40%), 오후 1시 = 최저 + 일교차×85%로 추정. 날짜 줄을 누르면 옷차림이 열려요.</p>";
+  html += `
+  <div class="footnote">
+    <div><strong>🌡️ 온도</strong> 4사 예보 중 최고·최저를 제외한 2개 평균</div>
+    <div><strong>🌧️ 강수</strong> 중앙값 80% + 신뢰도 가중평균 20%</div>
+    <div><strong>🤝 신뢰도</strong> 4사 Consensus + 예보 일치도 반영</div>
+    <div><strong>👕 옷차림</strong> 오전 9시·오후 1시 예상 체감온도 기준</div>
+    <div class="footnote-guide">날짜를 누르면 자세한 옷차림을 볼 수 있어요.</div>
+  </div>
+  `;
 
   document.getElementById("app").innerHTML = html;
 
