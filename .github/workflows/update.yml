@@ -2,8 +2,9 @@ name: 날씨 데이터 갱신
 
 on:
   schedule:
-    # 한국시간 6시·12시·18시 (UTC 21·03·09시)
-    - cron: "0 21,3,9 * * *"
+    # 3시간마다 실행. GitHub 예약 실행은 혼잡 시 수 시간 지연되므로
+    # 촘촘히 걸어서 항상 최근 몇 시간 내 데이터를 유지한다.
+    - cron: "0 */3 * * *"
   workflow_dispatch: {}
 
 permissions:
