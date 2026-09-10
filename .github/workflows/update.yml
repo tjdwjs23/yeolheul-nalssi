@@ -26,4 +26,7 @@ jobs:
           git add data.json
           git diff --cached --quiet && echo "변경 없음" && exit 0
           git commit -m "날씨 데이터 갱신 ($(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST'))"
+          # 실행 도중 다른 커밋이 먼저 푸시된 경우를 대비해 리베이스 후 푸시
+          # (-X theirs: data.json이 충돌하면 방금 수집한 최신 데이터를 우선)
+          git pull --rebase -X theirs
           git push
