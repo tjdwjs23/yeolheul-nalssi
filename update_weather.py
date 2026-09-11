@@ -183,9 +183,8 @@ def rain_summary(probs, lead):
             break
 
     # 일치도: Spread(최고-최저)는 극단값 하나에 휘둘리는 지표라 그대로 쓰지 않는다.
-    # 3개가 20%p 이내로 뭉쳐 있고 하나만 40%p 이상 튀면 "3:1 소수의견"으로 보고,
-    # 일치도는 합의된 3개의 Spread로 계산하며 튄 값은 소수의견 경고로 남긴다.
-    warning = None
+    # 3개가 20%p 이내로 뭉쳐 있고 하나만 40%p 이상 튀면 "3:1 소수의견"으로 보고
+    # 일치도는 합의된 3개의 Spread로 계산한다. (소수의견 자체는 별도 표시하지 않음)
     spread = max(arr) - min(arr)
     if n == 4:
         outlier_key = max(vals, key=lambda k: abs(vals[k] - median))
@@ -193,7 +192,6 @@ def rain_summary(probs, lead):
         trio_spread = trio[-1] - trio[0]
         if trio_spread <= 20 and abs(vals[outlier_key] - trio[1]) >= 40:
             spread = trio_spread
-            warning = "%s만 %d%% 예보 (소수의견)" % (outlier_key, vals[outlier_key])
 
     agr_code = agr_text = None
     for hi, code, text in AGREEMENT_BANDS:
@@ -204,11 +202,8 @@ def rain_summary(probs, lead):
     if n == 4 and high60 == 2 and low20 == 2:   # 2:2 완전 갈림 → 일치도만 최하로
         agr_code, agr_text = "VERY_LOW", "예보 크게 엇갈림"
 
-    out = {"확률": final, "문구": label, "짧은문구": short,
-           "일치도": agr_code, "일치도문구": agr_text}
-    if warning:
-        out["경고"] = warning
-    return out
+    return {"확률": final, "문구": label, "짧은문구": short,
+            "일치도": agr_code, "일치도문구": agr_text}
 
 
 def avg_drop(values):
