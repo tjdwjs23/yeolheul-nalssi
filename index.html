@@ -1613,7 +1613,7 @@ function render(
 
         (
           today["계절"]
-            ? '<span class="season-tag">' + esc(today["계절"]) + '</span>'
+            ? '<span class="season-tag">' + esc(today["계절"]) + ' 날씨</span>'
             : ""
         ) +
 
@@ -1816,7 +1816,7 @@ function render(
 
             (
               d["계절"]
-                ? '<div class="d-season">' + esc(d["계절"]) +
+                ? '<div class="d-season">' + esc(d["계절"]) + ' 날씨' +
                   (d["일출"] ? ' · 일출 ' + esc(d["일출"]) : "") +
                   '</div>'
                 : ""
