@@ -60,6 +60,43 @@ AGREEMENT_BANDS = [
     (100, "VERY_LOW", "예보 크게 엇갈림"),
 ]
 
+def season_label(tmin, tmax, month):
+    """일평균(=최저·최고 평균)·최저·최고 기온으로 계절 단계를 판정.
+    봄/가을처럼 기온 조건이 같은 단계는 월로 구분한다(2~7월=봄 계열, 8~1월=가을 계열).
+    - 한여름: 평균 25 이상 + 최고 30 이상 / 초·늦여름: 평균 20~25 + 최고 25 이상
+    - 늦봄·초가을: 평균 15~20 + 최저 10 이상 / 봄·가을: 평균 10~15 + 최저 5 이상
+    - 초봄·늦가을: 평균 5~10 + 최저 0 이상 / 초·늦겨울: 평균 5 이하 + 최저 0 이하
+    - 한겨울: 평균 0 이하 + 최저 -5 이하
+    부가 조건(최저/최고)을 못 채우면 한 단계 서늘한 쪽으로 내린다."""
+    if tmin is None or tmax is None:
+        return None
+    tavg = (tmin + tmax) / 2
+    spring = 2 <= month <= 7          # 상반기는 봄 계열, 하반기·1월은 가을/겨울 계열
+    early_summer = month <= 7         # 6~7월 초여름, 8월 이후 늦여름
+    early_winter = month >= 7         # 11~12월 초겨울, 1~2월 늦겨울
+    if tavg >= 25:
+        return "한여름" if tmax >= 30 else ("초여름" if early_summer else "늦여름")
+    if tavg >= 20:
+        if tmax >= 25:
+            return "초여름" if early_summer else "늦여름"
+        return "늦봄" if spring else "초가을"
+    if tavg >= 15:
+        if tmin >= 10:
+            return "늦봄" if spring else "초가을"
+        return "봄" if spring else "가을"
+    if tavg >= 10:
+        if tmin >= 5:
+            return "봄" if spring else "가을"
+        return "초봄" if spring else "늦가을"
+    if tavg >= 5:
+        if tmin >= 0:
+            return "초봄" if spring else "늦가을"
+        return "초겨울" if early_winter else "늦겨울"
+    if tavg > 0 or tmin > -5:
+        return "초겨울" if early_winter else "늦겨울"
+    return "한겨울"
+
+
 # 기온(℃) 구간별 옷차림표: (하한, 상한(미포함), 외투, 상의)
 CLOTHES_BANDS = [
     (28, None, [], ["민소매", "반팔 티셔츠"]),
@@ -268,6 +305,7 @@ def scrape_region(region_code, kst_today):
         days.append({
             "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
             "요일": e["day"],
+            "계절": season_label(tmin, tmax, day_date.month),
             "일출": "%02d:%02d" % (int(rise), int(rise % 1 * 60)),
             "최저온도": tmin, "최고온도": tmax,
             "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},

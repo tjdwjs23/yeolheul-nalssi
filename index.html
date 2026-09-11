@@ -335,6 +335,30 @@ h1 {
   font-weight: 700;
 }
 
+.season-tag {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 3px 9px;
+
+  border-radius: 999px;
+
+  background: var(--surface-soft);
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.d-season {
+  margin-bottom: 8px;
+
+  color: var(--faint);
+
+  font-size: 11px;
+  font-weight: 550;
+}
+
 
 /* Main temperatures */
 
@@ -1587,6 +1611,12 @@ function render(
             : ""
         ) +
 
+        (
+          today["계절"]
+            ? '<span class="season-tag">' + esc(today["계절"]) + '</span>'
+            : ""
+        ) +
+
       '</div>' +
 
 
@@ -1783,6 +1813,14 @@ function render(
           /* DETAIL */
 
           '<div class="d-detail">' +
+
+            (
+              d["계절"]
+                ? '<div class="d-season">' + esc(d["계절"]) +
+                  (d["일출"] ? ' · 일출 ' + esc(d["일출"]) : "") +
+                  '</div>'
+                : ""
+            ) +
 
             '<div class="halves">' +
 
