@@ -269,6 +269,29 @@ h1 {
   outline-offset: 4px;
 }
 
+.naver-weather-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.naver-weather-link:hover {
+  text-decoration: underline;
+}
+
+.naver-weather-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .updated {
   margin-top: 7px;
 
@@ -1593,6 +1616,15 @@ function render(
         esc(updated || "") +
         " 업데이트" +
       '</div>' +
+
+      '<a class="naver-weather-link" ' +
+        'href="https://weather.naver.com/today/' +
+        encodeURIComponent(selectedCode) +
+        '" target="_blank" rel="noopener noreferrer" ' +
+        'aria-label="' + esc(region["지역명"]) +
+        ' 네이버 날씨 보기 (새 창)">' +
+        '네이버 날씨 보기 <span aria-hidden="true">↗</span>' +
+      '</a>' +
 
     '</header>';
 

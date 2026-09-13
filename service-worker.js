@@ -1,4 +1,4 @@
-const CACHE_NAME = "yeolheul-pwa-v1";
+const CACHE_NAME = "yeolheul-pwa-v2";
 
 const APP_SHELL = [
   "./",
