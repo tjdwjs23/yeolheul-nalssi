@@ -1176,6 +1176,14 @@ h1 {
 }
 
 </style>
+<!-- PWA -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="application-name" content="열흘날씨">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
 </head>
 
 
@@ -2043,6 +2051,16 @@ fetch(
     }
   );
 
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("./service-worker.js")
+      .catch(err => console.error("Service Worker 등록 실패:", err));
+  });
+}
 </script>
 
 </body>
