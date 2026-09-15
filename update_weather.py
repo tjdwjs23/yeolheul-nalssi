@@ -232,12 +232,19 @@ def clothes_at(temp):
     return [], []
 
 
-# 옷차림 기준온도: 일교차 대비 상승 비율
-# 오전 9시 비율은 고정값이 아니라 그날의 일출시각으로 계산한다:
-#   AM_RATIO = (9시 - 일출) / (15시 - 일출)   ← 15시 = 대략적인 일최고기온 도달 시각(thermal lag)
-# 일최저는 일출 무렵에 나타나므로, 9시 기온의 위치는 "일출 후 얼마나 지났느냐"가 결정한다.
-# 한여름(일출 5시대) ≈ 0.39, 한겨울(일출 7시대 후반) ≈ 0.20으로 자연스럽게 계절이 반영된다.
+# 옷차림 기준온도(오전 9시 / 오후 1시)는 같은 페이지의 시간별 예보에 있는
+# 실제 9시·13시 온도로 계산한다:
+#   기준일 = 그 시각이 아직 안 지났으면 오늘, 지났으면 다음날
+#   오전 차이 = 기준일 9시 온도(4사 최고·최저 제외 평균) − 기준일 통합 최저기온
+#   오후 차이 = 기준일 13시 온도(〃) − 기준일 통합 최고기온
+#   각 날짜의 기준온도 = 그날 최저 + 오전 차이 / 그날 최고 + 오후 차이
+# (시간별 예보는 약 2일치뿐이라, 기준일에서 뽑은 '차이'를 10일 전체에 적용)
 AM_HOUR = 9        # 오전 기준 시각
+PM_HOUR = 13       # 오후 기준 시각
+
+# --- 아래는 시간별 예보를 구하지 못했을 때의 예비(일출 기반) 공식 ---
+#   AM_RATIO = (9시 - 일출) / (15시 - 일출)   ← 15시 = 대략적인 일최고기온 도달 시각(thermal lag)
+# 한여름(일출 5시대) ≈ 0.39, 한겨울(일출 7시대 후반) ≈ 0.20으로 계절이 자연스럽게 반영된다.
 PEAK_HOUR = 15     # 일최고기온 도달 가정 시각
 AM_RATIO_MIN = 0.20
 AM_RATIO_MAX = 0.40
@@ -269,12 +276,9 @@ def am_ratio_for(lat, lon, date):
     return max(AM_RATIO_MIN, min(AM_RATIO_MAX, ratio)), rise
 
 
-def ref_temp(tmin, tmax, ratio):
-    """기준온도 추정: 최저 + 일교차 × 비율.
-    표시는 0.5 단위 스냅: 소수 첫째 자리가 5 미만이면 내림, 5면 .5 유지, 5 초과면 올림."""
-    if tmin is None or tmax is None:
-        return tmin
-    scaled = int(round((tmin + (tmax - tmin) * ratio) * 10))
+def snap_half(value):
+    """표시용 0.5 단위 스냅: 소수 첫째 자리가 5 미만이면 내림, 5면 .5 유지, 5 초과면 올림."""
+    scaled = int(round(value * 10))
     whole, digit = divmod(scaled, 10)
     if digit < 5:
         return whole
@@ -283,7 +287,15 @@ def ref_temp(tmin, tmax, ratio):
     return whole + 1
 
 
-def scrape_region(region_code, kst_today):
+def ref_temp(tmin, tmax, ratio):
+    """(예비 공식) 기준온도 추정: 최저 + 일교차 × 비율."""
+    if tmin is None or tmax is None:
+        return tmin
+    return snap_half(tmin + (tmax - tmin) * ratio)
+
+
+def scrape_region(region_code, kst_now):
+    kst_today = kst_now.date()
     """지역코드 하나를 스크래핑해 계산된 예보 dict를 반환."""
     req = urllib.request.Request("https://weather.naver.com/compare/" + region_code,
                                  headers={"User-Agent": UA})
@@ -299,6 +311,20 @@ def scrape_region(region_code, kst_today):
     lat = region.get("latitude") or 37.5665   # 좌표가 없으면 서울 시청 기준
     lon = region.get("longitude") or 126.978
     provider_map = cr["compareWeeklyFcast~~1"]["domesticWeeklyListMap"]
+    hourly_map = (cr.get("compareHourlyFcast~~1") or {}).get("domesticHourlyListMap") or {}
+
+    def hourly_united(ymd, hour):
+        """해당 날짜·시각의 4사 시간별 온도를 최고·최저 제외 평균으로 통합."""
+        vals = []
+        for plist in hourly_map.values():
+            for h in plist:
+                try:
+                    if h.get("aplYmd") == ymd and int(h.get("aplTm")) == hour:
+                        vals.append(h.get("tmpr"))
+                        break
+                except (TypeError, ValueError):
+                    continue
+        return avg_drop(vals)
 
     by_date = {}
     for provider, plist in provider_map.items():
@@ -310,16 +336,40 @@ def scrape_region(region_code, kst_today):
             e["am"][provider] = d.get("amRainProb")
             e["pm"][provider] = d.get("pmRainProb")
 
+    # 날짜별 통합 최저/최고를 먼저 계산 (기준일 차이 계산에 필요)
+    temps = {ymd: (avg_drop(e["min"]), avg_drop(e["max"])) for ymd, e in by_date.items()}
+
+    def anchor_delta(hour, use_max):
+        """실제 시간별 예보로 (기준시각 온도 − 기준일 최저/최고) 차이를 구한다.
+        기준일: 오늘 그 시각이 아직 안 지났으면 오늘, 지났으면 다음날."""
+        basis = kst_today if kst_now.hour < hour else kst_today + datetime.timedelta(days=1)
+        ymd = basis.strftime("%Y%m%d")
+        t_hour = hourly_united(ymd, hour)
+        tmin_b, tmax_b = temps.get(ymd, (None, None))
+        ref = tmax_b if use_max else tmin_b
+        if t_hour is None or ref is None:
+            return None
+        return t_hour - ref
+
+    delta_am = anchor_delta(AM_HOUR, use_max=False)  # 기준일 9시 온도 − 기준일 최저
+    delta_pm = anchor_delta(PM_HOUR, use_max=True)   # 기준일 13시 온도 − 기준일 최고
+
     days = []
     for ymd in sorted(by_date):
         e = by_date[ymd]
         day_date = datetime.date(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:]))
         lead = max((day_date - kst_today).days, 0)
-        tmin = avg_drop(e["min"])
-        tmax = avg_drop(e["max"])
-        am_ratio, rise = am_ratio_for(lat, lon, day_date)
-        t_am = ref_temp(tmin, tmax, am_ratio)
-        t_pm = ref_temp(tmin, tmax, PM_RATIO)
+        tmin, tmax = temps[ymd]
+        rise = sunrise_hour(lat, lon, day_date)
+        # 실제 시간별 예보에서 뽑은 차이를 우선 적용, 없으면 일출 기반 예비 공식
+        if delta_am is not None and tmin is not None:
+            t_am = snap_half(tmin + delta_am)
+        else:
+            t_am = ref_temp(tmin, tmax, am_ratio_for(lat, lon, day_date)[0])
+        if delta_pm is not None and tmax is not None:
+            t_pm = snap_half(tmax + delta_pm)
+        else:
+            t_pm = ref_temp(tmin, tmax, PM_RATIO)
         am_outer, am_top = clothes_at(t_am)
         pm_outer, pm_top = clothes_at(t_pm)
         days.append({
@@ -341,7 +391,7 @@ kst_today = kst_now.date()
 
 regions = {}
 for code in REGIONS:
-    regions[code] = scrape_region(code, kst_today)
+    regions[code] = scrape_region(code, kst_now)
     print("수집:", regions[code]["지역명"], len(regions[code]["일자별"]), "일치")
     time.sleep(1)  # 네이버에 연속 요청 간 간격
 
