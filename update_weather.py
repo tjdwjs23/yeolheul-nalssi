@@ -11,6 +11,7 @@ GitHub Actions가 하루 3번(한국시간 6·12·18시) 실행한다.
 import datetime
 import json
 import math
+import re
 import time
 import urllib.request
 
@@ -66,28 +67,60 @@ AGREEMENT_BANDS = [
 ]
 
 # ==================================================
-# 평년값 (기상청 1991~2020 기후평년, 월평균 일최저/일최고 ℃)
-# 월 중앙(15일)을 앵커로 선형보간해 일별 평년을 근사한다.
+# 평년값: 기상청 1991~2020 일별 평년값, 서울(108) 지점
+# 갱신할 때마다 기상자료개방포털(data.kma.go.kr)에서 예보 기간(열흘)만 조회한다.
+# 조회에 실패하면 평년 비교("평년비교")는 생략된다(페이지에서 카드 숨김).
 # ==================================================
-# 모든 지역을 서울(종관기상관측 108 지점) 평년 기준으로 비교한다.
-CLIMATE_NORMALS = {
-    "서울": {"min": [-5.5, -3.2, 1.9, 8.0, 13.5, 18.7, 22.3, 22.9, 17.7, 10.6, 3.5, -3.4],
-             "max": [2.1, 5.1, 11.0, 17.9, 23.6, 27.6, 29.0, 30.0, 26.2, 20.2, 11.9, 4.2]},
-}
-DEFAULT_STATION = "서울"
+NORMALS_URL = "https://data.kma.go.kr/climate/average30Years/selectAverage30YearsList.do"
+NORMALS_BASE = ("pgmNo=113&menuNo=652&serviceSe=F00101&selectType=1&mddlClssCd=SFC01"
+                "&schStnId=108&startYear=2021&schGubun=3")
 
 
-def normal_temp(station, date, kind):
-    """해당 날짜의 평년 일최저("min")/일최고("max")를 월 중앙 앵커 선형보간으로 근사."""
-    vals = CLIMATE_NORMALS.get(station, CLIMATE_NORMALS[DEFAULT_STATION])[kind]
-    m = date.month - 1
-    if date.day >= 15:
-        a, b = vals[m], vals[(m + 1) % 12]
-        frac = (date.day - 15) / 30.0
+def _fetch_normals_span(sm, sd, em, ed):
+    """(시작월/일 ~ 끝월/일) 구간의 일별 평년값을 조회해 {(월,일): (최저,최고)} 반환."""
+    params = NORMALS_BASE + "&startMonth=%d&startDay=%02d&endMonth=%d&endDay=%02d" % (sm, sd, em, ed)
+    req = urllib.request.Request(NORMALS_URL, data=params.encode(),
+                                 headers={"User-Agent": UA})
+    html = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
+    table = {}
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S):
+        cells = [re.sub(r"<[^>]+>|\s+", " ", c).strip()
+                 for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
+        # 형식: [MM-DD, 평균, 최고, 최저, 강수량] (하루짜리 조회는 지점명 열이 끼므로 길이로 구분)
+        if len(cells) >= 5 and re.match(r"\d\d-\d\d$", cells[0]):
+            off = 1 if not re.match(r"-?\d", cells[1]) else 0  # 지점명 열이 있으면 건너뜀
+            m, d = int(cells[0][:2]), int(cells[0][3:])
+            table[(m, d)] = (float(cells[3 + off]), float(cells[2 + off]))  # (최저, 최고)
+    return table
+
+
+def fetch_daily_normals(start_date, end_date):
+    """예보 기간의 일별 평년값 조회. 연말→연초로 걸치면 두 번 나눠 합친다."""
+    if (start_date.month, start_date.day) <= (end_date.month, end_date.day):
+        table = _fetch_normals_span(start_date.month, start_date.day,
+                                    end_date.month, end_date.day)
     else:
-        a, b = vals[(m - 1) % 12], vals[m]
-        frac = (date.day + 15) / 30.0
-    return a + (b - a) * frac
+        table = _fetch_normals_span(start_date.month, start_date.day, 12, 31)
+        table.update(_fetch_normals_span(1, 1, end_date.month, end_date.day))
+    # 서버가 구간 요청에도 1년치를 돌려주는 경우가 있어, 필요한 날짜만 골라낸다
+    wanted = set()
+    cur = start_date
+    while cur <= end_date:
+        wanted.add((cur.month, cur.day))
+        cur += datetime.timedelta(days=1)
+    table = {k: v for k, v in table.items() if k in wanted}
+    expected = (end_date - start_date).days + 1
+    if len(table) < expected - 1:  # 2/29 등 한두 개 빠지는 건 허용
+        raise ValueError("일별 평년값 %d/%d일치만 수신" % (len(table), expected))
+    return table
+
+
+def normal_temp(normals, date, kind):
+    """해당 날짜의 공식 일별 평년값("min"=일최저, "max"=일최고)."""
+    pair = normals.get((date.month, date.day))
+    if pair is None:
+        return None
+    return pair[0] if kind == "min" else pair[1]
 
 
 # 계절감 판정에서 월이 하는 역할: 계절을 결정하는 게 아니라 "연중 기온 방향"만 구분한다.
@@ -319,7 +352,7 @@ def ref_temp(tmin, tmax, ratio):
     return snap_half(tmin + (tmax - tmin) * ratio)
 
 
-def scrape_region(region_code, kst_now):
+def scrape_region(region_code, kst_now, normals):
     kst_today = kst_now.date()
     """지역코드 하나를 스크래핑해 계산된 예보 dict를 반환."""
     req = urllib.request.Request("https://weather.naver.com/compare/" + region_code,
@@ -408,20 +441,22 @@ def scrape_region(region_code, kst_now):
         })
 
     # 열흘 전체를 평년(1991~2020)과 비교한 평균 편차 (전 지역 서울 관측소 기준)
-    station = DEFAULT_STATION
-    diff_min, diff_max = [], []
-    for d in days:
-        y, m, dd = (int(x) for x in d["날짜"].split("-"))
-        date = datetime.date(y, m, dd)
-        if d["최저온도"] is not None:
-            diff_min.append(d["최저온도"] - normal_temp(station, date, "min"))
-        if d["최고온도"] is not None:
-            diff_max.append(d["최고온도"] - normal_temp(station, date, "max"))
     compare = None
-    if diff_min and diff_max:
-        compare = {"최저차": round(sum(diff_min) / len(diff_min), 1),
-                   "최고차": round(sum(diff_max) / len(diff_max), 1),
-                   "관측소": station}
+    if normals:
+        diff_min, diff_max = [], []
+        for d in days:
+            y, m, dd = (int(x) for x in d["날짜"].split("-"))
+            date = datetime.date(y, m, dd)
+            n_min = normal_temp(normals, date, "min")
+            n_max = normal_temp(normals, date, "max")
+            if d["최저온도"] is not None and n_min is not None:
+                diff_min.append(d["최저온도"] - n_min)
+            if d["최고온도"] is not None and n_max is not None:
+                diff_max.append(d["최고온도"] - n_max)
+        if diff_min and diff_max:
+            compare = {"최저차": round(sum(diff_min) / len(diff_min), 1),
+                       "최고차": round(sum(diff_max) / len(diff_max), 1),
+                       "관측소": "서울"}
 
     return {"지역코드": region_code, "지역명": region_name,
             "제공사": sorted(provider_map.keys()), "일자별": days,
@@ -431,9 +466,17 @@ def scrape_region(region_code, kst_now):
 kst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 kst_today = kst_now.date()
 
+try:
+    daily_normals = fetch_daily_normals(kst_today - datetime.timedelta(days=1),
+                                        kst_today + datetime.timedelta(days=10))
+    print("평년값 조회 성공 (기상자료개방포털, %d일치)" % len(daily_normals))
+except Exception as exc:
+    daily_normals = None
+    print("평년값 조회 실패, 평년 비교 생략:", exc)
+
 regions = {}
 for code in REGIONS:
-    regions[code] = scrape_region(code, kst_now)
+    regions[code] = scrape_region(code, kst_now, daily_normals)
     print("수집:", regions[code]["지역명"], len(regions[code]["일자별"]), "일치")
     time.sleep(1)  # 네이버에 연속 요청 간 간격
 
