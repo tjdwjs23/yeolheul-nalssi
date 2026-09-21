@@ -319,6 +319,45 @@ h1 {
 
 
 /* =========================================================
+   OVERVIEW (열흘 요약)
+========================================================= */
+
+.overview {
+  margin-bottom: 14px;
+  padding: 15px 18px;
+}
+
+.ov-title {
+  margin-bottom: 6px;
+
+  color: var(--faint);
+
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ov-line {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.ov-line b { font-weight: 750; }
+.ov-line .up { color: var(--warm); }
+.ov-line .down { color: var(--cool); }
+
+.ov-sub {
+  margin-top: 3px;
+
+  color: var(--muted);
+
+  font-size: 12px;
+  font-weight: 450;
+}
+
+
+/* =========================================================
    HERO / TODAY
 ========================================================= */
 
@@ -1627,6 +1666,35 @@ function render(
       '</a>' +
 
     '</header>';
+
+
+  /* =======================================================
+     열흘 요약 (평년 대비)
+  ======================================================= */
+
+  const cmp = region["평년비교"];
+  if (cmp) {
+    const phrase = v => {
+      if (v >= 0.3) return '<b class="up">' + v.toFixed(1) + "° 높음</b>";
+      if (v <= -0.3) return '<b class="down">' + Math.abs(v).toFixed(1) + "° 낮음</b>";
+      return "<b>평년 수준</b>";
+    };
+    const rainyDays = days.filter(d => {
+      const a = d["오전"] && d["오전"]["강수"], p = d["오후"] && d["오후"]["강수"];
+      return Math.max(a ? a["확률"] : 0, p ? p["확률"] : 0) >= 60;
+    }).length;
+    html +=
+      '<section class="card overview">' +
+        '<div class="ov-title">열흘 요약 · 평년(1991~2020, 서울 기준) 대비</div>' +
+        '<div class="ov-line">최저기온 ' + phrase(cmp["최저차"]) +
+        ' · 최고기온 ' + phrase(cmp["최고차"]) + '</div>' +
+        '<div class="ov-sub">' +
+          (rainyDays > 0
+            ? "비 올 만한 날(확률 60% 이상) " + rainyDays + "일"
+            : "열흘간 큰 비 소식은 없어요") +
+        '</div>' +
+      '</section>';
+  }
 
 
   /* =======================================================

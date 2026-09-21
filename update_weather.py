@@ -65,6 +65,31 @@ AGREEMENT_BANDS = [
     (100, "VERY_LOW", "예보 크게 엇갈림"),
 ]
 
+# ==================================================
+# 평년값 (기상청 1991~2020 기후평년, 월평균 일최저/일최고 ℃)
+# 월 중앙(15일)을 앵커로 선형보간해 일별 평년을 근사한다.
+# ==================================================
+# 모든 지역을 서울(종관기상관측 108 지점) 평년 기준으로 비교한다.
+CLIMATE_NORMALS = {
+    "서울": {"min": [-5.5, -3.2, 1.9, 8.0, 13.5, 18.7, 22.3, 22.9, 17.7, 10.6, 3.5, -3.4],
+             "max": [2.1, 5.1, 11.0, 17.9, 23.6, 27.6, 29.0, 30.0, 26.2, 20.2, 11.9, 4.2]},
+}
+DEFAULT_STATION = "서울"
+
+
+def normal_temp(station, date, kind):
+    """해당 날짜의 평년 일최저("min")/일최고("max")를 월 중앙 앵커 선형보간으로 근사."""
+    vals = CLIMATE_NORMALS.get(station, CLIMATE_NORMALS[DEFAULT_STATION])[kind]
+    m = date.month - 1
+    if date.day >= 15:
+        a, b = vals[m], vals[(m + 1) % 12]
+        frac = (date.day - 15) / 30.0
+    else:
+        a, b = vals[(m - 1) % 12], vals[m]
+        frac = (date.day + 15) / 30.0
+    return a + (b - a) * frac
+
+
 # 계절감 판정에서 월이 하는 역할: 계절을 결정하는 게 아니라 "연중 기온 방향"만 구분한다.
 # 같은 평균 12°/최저 7°라도 4월(상승기)이면 봄, 11월(하강기)이면 가을.
 # (기온 90% + 달력은 방향성 10%. 튜닝 가능하도록 상수로 분리)
@@ -382,8 +407,25 @@ def scrape_region(region_code, kst_now):
             "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
         })
 
+    # 열흘 전체를 평년(1991~2020)과 비교한 평균 편차 (전 지역 서울 관측소 기준)
+    station = DEFAULT_STATION
+    diff_min, diff_max = [], []
+    for d in days:
+        y, m, dd = (int(x) for x in d["날짜"].split("-"))
+        date = datetime.date(y, m, dd)
+        if d["최저온도"] is not None:
+            diff_min.append(d["최저온도"] - normal_temp(station, date, "min"))
+        if d["최고온도"] is not None:
+            diff_max.append(d["최고온도"] - normal_temp(station, date, "max"))
+    compare = None
+    if diff_min and diff_max:
+        compare = {"최저차": round(sum(diff_min) / len(diff_min), 1),
+                   "최고차": round(sum(diff_max) / len(diff_max), 1),
+                   "관측소": station}
+
     return {"지역코드": region_code, "지역명": region_name,
-            "제공사": sorted(provider_map.keys()), "일자별": days}
+            "제공사": sorted(provider_map.keys()), "일자별": days,
+            "평년비교": compare}
 
 
 kst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
