@@ -347,6 +347,13 @@ h1 {
 .ov-line .up { color: var(--warm); }
 .ov-line .down { color: var(--cool); }
 
+.ov-avg {
+  color: var(--faint);
+
+  font-size: 12px;
+  font-weight: 450;
+}
+
 .ov-sub {
   margin-top: 3px;
 
@@ -1683,11 +1690,15 @@ function render(
       const a = d["오전"] && d["오전"]["강수"], p = d["오후"] && d["오후"]["강수"];
       return Math.max(a ? a["확률"] : 0, p ? p["확률"] : 0) >= 60;
     }).length;
+    const avgPart = (fk, nk) =>
+      (cmp[fk] != null && cmp[nk] != null)
+        ? " <span class=\"ov-avg\">(열흘 평균 " + cmp[fk] + "° · 평년 " + cmp[nk] + "°)</span>"
+        : "";
     html +=
       '<section class="card overview">' +
         '<div class="ov-title">열흘 요약 · 평년(1991~2020, 서울 기준) 대비</div>' +
-        '<div class="ov-line">최저기온 ' + phrase(cmp["최저차"]) +
-        ' · 최고기온 ' + phrase(cmp["최고차"]) + '</div>' +
+        '<div class="ov-line">최저기온 ' + phrase(cmp["최저차"]) + avgPart("예보최저평균", "평년최저평균") + '</div>' +
+        '<div class="ov-line">최고기온 ' + phrase(cmp["최고차"]) + avgPart("예보최고평균", "평년최고평균") + '</div>' +
         '<div class="ov-sub">' +
           (rainyDays > 0
             ? "비 올 만한 날(확률 60% 이상) " + rainyDays + "일"

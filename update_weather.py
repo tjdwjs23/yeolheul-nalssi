@@ -440,22 +440,27 @@ def scrape_region(region_code, kst_now, normals):
             "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
         })
 
-    # 열흘 전체를 평년(1991~2020)과 비교한 평균 편차 (전 지역 서울 관측소 기준)
+    # 열흘 요약: 예보 열흘의 최저/최고 평균 vs 같은 기간 평년(1991~2020, 서울)의 최저/최고 평균
     compare = None
     if normals:
-        diff_min, diff_max = [], []
+        f_min, f_max, n_min, n_max = [], [], [], []
         for d in days:
             y, m, dd = (int(x) for x in d["날짜"].split("-"))
             date = datetime.date(y, m, dd)
-            n_min = normal_temp(normals, date, "min")
-            n_max = normal_temp(normals, date, "max")
-            if d["최저온도"] is not None and n_min is not None:
-                diff_min.append(d["최저온도"] - n_min)
-            if d["최고온도"] is not None and n_max is not None:
-                diff_max.append(d["최고온도"] - n_max)
-        if diff_min and diff_max:
-            compare = {"최저차": round(sum(diff_min) / len(diff_min), 1),
-                       "최고차": round(sum(diff_max) / len(diff_max), 1),
+            nmin = normal_temp(normals, date, "min")
+            nmax = normal_temp(normals, date, "max")
+            if d["최저온도"] is not None and nmin is not None:
+                f_min.append(d["최저온도"])
+                n_min.append(nmin)
+            if d["최고온도"] is not None and nmax is not None:
+                f_max.append(d["최고온도"])
+                n_max.append(nmax)
+        if f_min and f_max:
+            avg = lambda v: round(sum(v) / len(v), 1)
+            compare = {"예보최저평균": avg(f_min), "평년최저평균": avg(n_min),
+                       "최저차": round(avg(f_min) - avg(n_min), 1),
+                       "예보최고평균": avg(f_max), "평년최고평균": avg(n_max),
+                       "최고차": round(avg(f_max) - avg(n_max), 1),
                        "관측소": "서울"}
 
     return {"지역코드": region_code, "지역명": region_name,
