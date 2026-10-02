@@ -2,10 +2,10 @@ name: 날씨 데이터 갱신
 
 on:
   schedule:
-    # 매시 37분 실행(하루 24회 시도). GitHub 무료 cron은 예약의 절반 이상을
-    # 혼잡으로 누락시키므로(실측 발화율 40~50%), 시도를 늘려 실효 갱신 간격을
-    # 2~3시간으로 유지한다. 실행당 1분 미만이라 공개 저장소 무료 한도와 무관.
-    - cron: "37 * * * *"
+    # 정시 갱신은 cron-job.org가 workflow_dispatch로 호출한다(매일 KST 7·12·17·21시).
+    # 아래 자체 예약은 cron-job.org 장애 대비 백업 — GitHub 무료 cron은 절반쯤
+    # 누락되므로 4시간 간격 시도(실효 하루 2~3회)면 백업으로 충분하다.
+    - cron: "37 */4 * * *"
   workflow_dispatch: {}
 
 permissions:
