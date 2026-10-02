@@ -18,6 +18,20 @@ import urllib.request
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36")
 
+
+def http_read(url, data=None, timeout=20, tries=3):
+    """일시적 네트워크 오류(SSL 핸드셰이크 타임아웃 등)에 대비해 재시도하며 읽는다."""
+    last = None
+    for attempt in range(tries):
+        try:
+            req = urllib.request.Request(url, data=data, headers={"User-Agent": UA})
+            return urllib.request.urlopen(req, timeout=timeout).read().decode("utf-8", "ignore")
+        except Exception as exc:
+            last = exc
+            if attempt < tries - 1:
+                time.sleep(5 * (attempt + 1))
+    raise last
+
 # 조회할 지역 목록 (첫 번째가 기본 지역). 코드는 weather.naver.com/compare/{코드} 주소의 숫자.
 # 지역 추가: 네이버 날씨에서 해당 동네 비교 페이지를 열고 주소 끝 코드를 여기 붙이면 된다.
 REGIONS = [
@@ -79,9 +93,7 @@ NORMALS_BASE = ("pgmNo=113&menuNo=652&serviceSe=F00101&selectType=1&mddlClssCd=S
 def _fetch_normals_span(sm, sd, em, ed):
     """(시작월/일 ~ 끝월/일) 구간의 일별 평년값을 조회해 {(월,일): (최저,최고)} 반환."""
     params = NORMALS_BASE + "&startMonth=%d&startDay=%02d&endMonth=%d&endDay=%02d" % (sm, sd, em, ed)
-    req = urllib.request.Request(NORMALS_URL, data=params.encode(),
-                                 headers={"User-Agent": UA})
-    html = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
+    html = http_read(NORMALS_URL, data=params.encode())
     table = {}
     for row in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S):
         cells = [re.sub(r"<[^>]+>|\s+", " ", c).strip()
@@ -355,9 +367,7 @@ def ref_temp(tmin, tmax, ratio):
 def scrape_region(region_code, kst_now, normals):
     kst_today = kst_now.date()
     """지역코드 하나를 스크래핑해 계산된 예보 dict를 반환."""
-    req = urllib.request.Request("https://weather.naver.com/compare/" + region_code,
-                                 headers={"User-Agent": UA})
-    html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
+    html = http_read("https://weather.naver.com/compare/" + region_code, timeout=15)
     marker = "var blockApiResult = "
     idx = html.find(marker)
     if idx < 0:
