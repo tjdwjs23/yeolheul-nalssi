@@ -159,7 +159,8 @@ def season_feel(d, tmin, tmax):
     """
     if tmin is None or tmax is None:
         return None
-    avg = (tmin + tmax) / 2
+    # round: 부동소수점 합산 오차가 경계값(15.0, 20.0 등) 비교를 흔들지 않게 고정
+    avg = round((tmin + tmax) / 2, 1)
     warming = is_warming(d)
 
     # 기본 분류
