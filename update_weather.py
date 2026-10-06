@@ -135,61 +135,54 @@ def normal_temp(normals, date, kind):
     return pair[0] if kind == "min" else pair[1]
 
 
-# 계절감 판정에서 월이 하는 역할: 계절을 결정하는 게 아니라 "연중 기온 방향"만 구분한다.
-# 같은 평균 12°/최저 7°라도 4월(상승기)이면 봄, 11월(하강기)이면 가을.
-# (기온 90% + 달력은 방향성 10%. 튜닝 가능하도록 상수로 분리)
-WARMING_FIRST, WARMING_LAST = 2, 7   # 2~7월 = warming phase(봄 계열), 8~1월 = cooling phase(가을 계열)
-EARLY_SUMMER_LAST = 7                # 초여름은 7월까지, 8월부터는 늦여름
-EARLY_WINTER_FROM = 7                # 7월 이후(실질적으로 11~12월)는 초겨울, 1~2월은 늦겨울
+# 계절감 판정: 평균기온이 구간을 정하고, 날짜가 상승기/하강기(이름)를 정한다.
+# 서울 기준 가장 추운 시기(1/20)~가장 더운 시기(8/1)가 상승기, 그 외는 하강기 —
+# 월 단위(2~7월)보다 날짜 경계가 월 초입에서 덜 어색하다. 튜닝 가능하도록 상수 분리.
+WARMING_START = (1, 20)  # 이 날짜부터 상승기
+WARMING_END = (8, 1)     # 이 날짜까지 상승기 (8/2부터 하강기)
 
 
-def season_feel(tmin, tmax, month):
+def season_feel(tmin, tmax, month, day):
     """그날 기온이 어느 계절처럼 느껴지는지(계절감)를 판정한다.
-    "지금이 무슨 계절인가"가 아니다 — 기상청의 공식 계절 구분은 9일 이동평균과
-    지속성 조건을 쓰지만, 여기서는 하루치 스냅샷이라 날마다 달라질 수 있고
-    그래서 UI에서도 "늦여름 날씨"처럼 표기한다. 옷차림 계산에는 쓰지 않는 보조 정보.
+    "지금이 무슨 계절인가"가 아니다 — 하루치 스냅샷이라 날마다 달라질 수 있고
+    UI에서도 "늦여름 날씨"처럼 표기한다. 옷차림 계산에는 쓰지 않는 보조 정보.
 
-    일평균기온은 (최저+최고)/2로 근사 (최저·최고가 이미 4사 통합값이라 강건함).
-    기준표(위키백과 기후학적 계절 세분류와 동일):
-    - 한여름: 평균 25 이상 + 최고 30 이상 / 초·늦여름: 평균 [20,25) + 최고 25 이상
-    - 늦봄·초가을: 평균 [15,20) + 최저 10 이상 / 봄·가을: 평균 [10,15) + 최저 5 이상
-    - 초봄·늦가을: 평균 [5,10) + 최저 0 이상 / 초·늦겨울: 평균 5 미만 + 최저 0 이하
-    - 한겨울: 평균 0 이하 + 최저 -5 이하
-    구현 규칙:
-    - 경계값은 반열림 구간 [하한, 상한)으로 통일 (평균기온 내림차순 캐스케이드).
-    - "초가을: 최고 25 이하"는 전역 조건이 아니라 cooling phase에서 여름→가을로
-      넘어가는 경계조건으로만 쓴다 (평균 20~25인데 최고가 25에 못 미치는 경우).
-      캐스케이드 구조상 한겨울 날씨가 초가을로 새는 일은 없다.
-    - 부가 조건(최저/최고) 미달 시 해당 방향 사다리에서 한 칸 서늘한 쪽으로 내린다.
-      (warming: 늦겨울→초봄→봄→늦봄→초여름→한여름 / cooling: 그 역방향)
-      내려간 라벨은 "엄밀한 정의 충족"이 아니라 근사 표시다."""
+    규칙:
+    - 평균기온((최저+최고)/2 근사)만으로 온도 구간을 정한다. 구간은 반개구간
+      [a, b)이라 10.0°, 15.0° 같은 경계값이 두 곳에 걸리지 않는다.
+    - 날짜로 상승기/하강기를 정해 같은 구간의 이름을 가른다
+      (늦봄↔초가을, 봄↔가을, 초봄↔늦가을, 초여름↔늦여름, 늦겨울↔초겨울).
+    - 최저·최고기온은 이름 결정에 쓰지 않고, 극단 구간(한여름: 평균 25 이상
+      + 최고 30 이상 / 한겨울: 평균 0 이하 + 최저 -5 이하) 판정에만 보조로 쓴다.
+
+    | 평균기온        | 상승기  | 하강기  |
+    | ≥25 (최고 ≥30) | 한여름  | 한여름  |
+    | [20, 25)       | 초여름  | 늦여름  |
+    | [15, 20)       | 늦봄   | 초가을  |
+    | [10, 15)       | 봄     | 가을   |
+    | [5, 10)        | 초봄   | 늦가을  |
+    | <5             | 늦겨울  | 초겨울  |
+    | ≤0 (최저 ≤-5)  | 한겨울  | 한겨울  |
+    """
     if tmin is None or tmax is None:
         return None
     tavg = (tmin + tmax) / 2
-    spring = WARMING_FIRST <= month <= WARMING_LAST
-    early_summer = month <= EARLY_SUMMER_LAST
-    early_winter = month >= EARLY_WINTER_FROM
+    warming = WARMING_START <= (month, day) <= WARMING_END
+    if tavg <= 0 and tmin <= -5:
+        return "한겨울"
+    if tavg >= 25 and tmax >= 30:
+        return "한여름"
     if tavg >= 25:
-        return "한여름" if tmax >= 30 else ("초여름" if early_summer else "늦여름")
+        return "초여름" if warming else "늦여름"
     if tavg >= 20:
-        if tmax >= 25:
-            return "초여름" if early_summer else "늦여름"
-        return "늦봄" if spring else "초가을"
+        return "초여름" if warming else "늦여름"
     if tavg >= 15:
-        if tmin >= 10:
-            return "늦봄" if spring else "초가을"
-        return "봄" if spring else "가을"
+        return "늦봄" if warming else "초가을"
     if tavg >= 10:
-        if tmin >= 5:
-            return "봄" if spring else "가을"
-        return "초봄" if spring else "늦가을"
+        return "봄" if warming else "가을"
     if tavg >= 5:
-        if tmin >= 0:
-            return "초봄" if spring else "늦가을"
-        return "초겨울" if early_winter else "늦겨울"
-    if tavg > 0 or tmin > -5:
-        return "초겨울" if early_winter else "늦겨울"
-    return "한겨울"
+        return "초봄" if warming else "늦가을"
+    return "늦겨울" if warming else "초겨울"
 
 
 # 기온(℃) 구간별 옷차림표: (하한, 상한(미포함), 외투, 상의)
@@ -443,7 +436,7 @@ def scrape_region(region_code, kst_now, normals):
         days.append({
             "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
             "요일": e["day"],
-            "계절": season_feel(tmin, tmax, day_date.month),
+            "계절": season_feel(tmin, tmax, day_date.month, day_date.day),
             "일출": "%02d:%02d" % (int(rise), int(rise % 1 * 60)),
             "최저온도": tmin, "최고온도": tmax,
             "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},
