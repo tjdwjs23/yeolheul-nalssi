@@ -549,6 +549,24 @@ h1 {
   min-height: 21px;
 }
 
+.t-label {
+  color: var(--muted);
+
+  font-size: 11px;
+  font-weight: 550;
+
+  white-space: nowrap;
+}
+
+.t-split {
+  color: var(--warning);
+
+  font-size: 10.5px;
+  font-weight: 650;
+
+  white-space: nowrap;
+}
+
 .t-agree {
   margin-top: 8px;
 
@@ -1588,12 +1606,19 @@ function timeCell(name, part) {
 
   const rain = part["강수"];
 
-  const rainHtml =
-    rain && rain["확률"] != null
-      ? '<span class="pill r' + rainRank(rain["확률"]) + '">' +
-          rain["확률"] + "%" +
-        "</span>"
-      : '<span class="t-norain">&nbsp;</span>';
+  let rainHtml = '<span class="t-norain">&nbsp;</span>';
+  if (rain && rain["확률"] != null) {
+    rainHtml =
+      '<span class="pill r' + rainRank(rain["확률"]) + '">' +
+        rain["확률"] + "%" +
+      "</span>" +
+      (rain["짧은문구"]
+        ? '<div class="t-label">' + esc(rain["짧은문구"]) + "</div>"
+        : "") +
+      (rain["일치도"] === "VERY_LOW"
+        ? '<div class="t-split">⚠ 예보 엇갈림</div>'
+        : "");
+  }
 
   return (
     '<div class="t-cell">' +
@@ -1614,17 +1639,7 @@ function timesRow(d) {
   );
 }
 
-function agreeNote(d) {
-  // 예보가 크게 엇갈리는 날만 경고 한 줄 (칸 안에 넣기엔 좁아서 밖으로)
-  const parts = [d["오전"], d["오후"]];
-  for (const p of parts) {
-    const r = p && p["강수"];
-    if (r && r["일치도"] === "VERY_LOW") {
-      return '<div class="t-agree">⚠ 강수 예보가 크게 엇갈려요</div>';
-    }
-  }
-  return "";
-}
+// 일치도 경고는 각 시간대 칸 안에서 개별 표시한다 (timeCell 참고)
 
 function outfitBlock(d) {
 
@@ -1929,7 +1944,6 @@ function render(
 
 
       timesRow(today) +
-      agreeNote(today) +
       outfitBlock(today) +
 
     '</section>';
@@ -2092,7 +2106,6 @@ function render(
             ) +
 
             timesRow(d) +
-            agreeNote(d) +
             outfitBlock(d) +
 
           '</div>' +

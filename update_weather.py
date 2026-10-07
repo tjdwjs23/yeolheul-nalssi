@@ -388,6 +388,21 @@ def scrape_region(region_code, kst_now, normals):
                     continue
         return avg_drop(vals)
 
+    def hourly_rain_probs(ymd, hour):
+        """해당 날짜·시각의 서비스별 강수확률 dict (시간별 예보가 없으면 빈 dict).
+        시간별 rainProb는 일자별과 달리 문자열('10')로 오므로 숫자로 변환한다."""
+        probs = {}
+        for provider, plist in hourly_map.items():
+            for h in plist:
+                try:
+                    if h.get("aplYmd") == ymd and int(h.get("aplTm")) == hour:
+                        if h.get("rainProb") is not None:
+                            probs[provider] = float(h.get("rainProb"))
+                        break
+                except (TypeError, ValueError):
+                    continue
+        return probs
+
     by_date = {}
     for provider, plist in provider_map.items():
         for d in plist:
@@ -451,8 +466,10 @@ def scrape_region(region_code, kst_now, normals):
             "최저온도": tmin, "최고온도": tmax,
             "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead)},
             "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead)},
-            # 저녁 강수는 네이버 일자별 데이터에 별도 확률이 없어(오전/오후뿐) 생략
-            "저녁": {"기준온도": t_ev, "강수": None},
+            # 저녁 강수: 시간별 예보의 실제 19시 확률(4사) 우선, 시간별이 없는
+            # 먼 날짜는 오후 확률로 대체(KMA 기준 '오후'가 자정까지 포함)
+            "저녁": {"기준온도": t_ev,
+                    "강수": rain_summary(hourly_rain_probs(ymd, EV_HOUR) or e["pm"], lead)},
             "옷차림": {"외투": outer, "상의": top},
         })
 
