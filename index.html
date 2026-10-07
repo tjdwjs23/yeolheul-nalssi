@@ -497,9 +497,89 @@ h1 {
   gap: 10px;
 }
 
-/* 세 번째 칸(저녁)은 아래 줄 가로 전체 — 모바일 폭에서 3열은 칩이 구겨진다 */
-.halves .half:nth-child(3) {
-  grid-column: 1 / -1;
+/* =========================================================
+   시간대 3칸 (시각·온도·강수%) + 하루 옷차림
+========================================================= */
+
+.times {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 8px;
+}
+
+.t-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 5px;
+
+  padding: 12px 6px;
+
+  border-radius: var(--radius-lg);
+
+  background: var(--surface-soft);
+}
+
+.t-name {
+  color: var(--muted);
+
+  font-size: 12px;
+  font-weight: 650;
+
+  white-space: nowrap;
+}
+
+.t-temp {
+  font-size: 22px;
+  font-weight: 750;
+
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-cell .pill {
+  font-size: 11px;
+  padding: 2px 9px;
+}
+
+.t-norain {
+  display: inline-block;
+  min-height: 21px;
+}
+
+.t-agree {
+  margin-top: 8px;
+
+  color: var(--warning);
+
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.outfit-day {
+  margin-top: 10px;
+  padding: 13px 14px;
+
+  border-radius: var(--radius-lg);
+
+  background: var(--surface-soft);
+}
+
+.outfit-title {
+  margin-bottom: 9px;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.outfit-title span {
+  margin-left: 5px;
+
+  color: var(--faint);
+
+  font-weight: 450;
 }
 
 .half {
@@ -1492,6 +1572,81 @@ function half(name, part) {
 
 
 /* =========================================================
+   시간대 3칸 + 하루 옷차림
+========================================================= */
+
+function timeCell(name, part) {
+
+  if (!part) {
+    return "";
+  }
+
+  const temp =
+    part["기준온도"] != null
+      ? esc(part["기준온도"]) + "°"
+      : "—";
+
+  const rain = part["강수"];
+
+  const rainHtml =
+    rain && rain["확률"] != null
+      ? '<span class="pill r' + rainRank(rain["확률"]) + '">' +
+          rain["확률"] + "%" +
+        "</span>"
+      : '<span class="t-norain">&nbsp;</span>';
+
+  return (
+    '<div class="t-cell">' +
+      '<div class="t-name">' + esc(name) + "</div>" +
+      '<div class="t-temp">' + temp + "</div>" +
+      rainHtml +
+    "</div>"
+  );
+}
+
+function timesRow(d) {
+  return (
+    '<div class="times">' +
+      timeCell("오전 9시", d["오전"]) +
+      timeCell("오후 1시", d["오후"]) +
+      timeCell("오후 7시", d["저녁"]) +
+    "</div>"
+  );
+}
+
+function agreeNote(d) {
+  // 예보가 크게 엇갈리는 날만 경고 한 줄 (칸 안에 넣기엔 좁아서 밖으로)
+  const parts = [d["오전"], d["오후"]];
+  for (const p of parts) {
+    const r = p && p["강수"];
+    if (r && r["일치도"] === "VERY_LOW") {
+      return '<div class="t-agree">⚠ 강수 예보가 크게 엇갈려요</div>';
+    }
+  }
+  return "";
+}
+
+function outfitBlock(d) {
+
+  const o = d["옷차림"];
+
+  if (!o) {
+    return "";
+  }
+
+  return (
+    '<div class="outfit-day">' +
+      '<div class="outfit-title">하루 옷차림 <span>아침·낮·저녁 모두 고려</span></div>' +
+      '<div class="outfits">' +
+        outfitRow("외투", o["외투"]) +
+        outfitRow("상의", o["상의"]) +
+      "</div>" +
+    "</div>"
+  );
+}
+
+
+/* =========================================================
    DATE
 ========================================================= */
 
@@ -1773,24 +1928,9 @@ function render(
       '</div>' +
 
 
-      '<div class="halves">' +
-
-        half(
-          "오전 9시",
-          today["오전"]
-        ) +
-
-        half(
-          "오후 1시",
-          today["오후"]
-        ) +
-
-        half(
-          "오후 7시",
-          today["저녁"]
-        ) +
-
-      '</div>' +
+      timesRow(today) +
+      agreeNote(today) +
+      outfitBlock(today) +
 
     '</section>';
 
@@ -1951,24 +2091,9 @@ function render(
                 : ""
             ) +
 
-            '<div class="halves">' +
-
-              half(
-                "오전 9시",
-                d["오전"]
-              ) +
-
-              half(
-                "오후 1시",
-                d["오후"]
-              ) +
-
-              half(
-                "오후 7시",
-                d["저녁"]
-              ) +
-
-            '</div>' +
+            timesRow(d) +
+            agreeNote(d) +
+            outfitBlock(d) +
 
           '</div>' +
 

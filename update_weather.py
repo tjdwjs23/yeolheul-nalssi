@@ -437,19 +437,23 @@ def scrape_region(region_code, kst_now, normals):
             t_ev = snap_half(tmax + delta_ev)
         else:
             t_ev = ref_temp(tmin, tmax, EV_RATIO)
-        am_outer, am_top = clothes_at(t_am)
-        pm_outer, pm_top = clothes_at(t_pm)
-        ev_outer, ev_top = clothes_at(t_ev)
+        # 하루 옷차림 통합: 옷은 아침에 한 번 입으므로 시간대별이 아니라 하루 한 벌.
+        # 상의 = 가장 따뜻한 시간대 기준(낮에 안 덥게), 외투 = 가장 추운 시간대 기준
+        # (아침·저녁에 걸치게) — 레이어링 원리.
+        temps_day = [t for t in (t_am, t_pm, t_ev) if t is not None]
+        outer, _ = clothes_at(min(temps_day)) if temps_day else ([], [])
+        _, top = clothes_at(max(temps_day)) if temps_day else ([], [])
         days.append({
             "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
             "요일": e["day"],
             "계절": season_feel(day_date, tmin, tmax),
             "일출": "%02d:%02d" % (int(rise), int(rise % 1 * 60)),
             "최저온도": tmin, "최고온도": tmax,
-            "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},
-            "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
+            "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead)},
+            "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead)},
             # 저녁 강수는 네이버 일자별 데이터에 별도 확률이 없어(오전/오후뿐) 생략
-            "저녁": {"기준온도": t_ev, "강수": None, "외투": ev_outer, "상의": ev_top},
+            "저녁": {"기준온도": t_ev, "강수": None},
+            "옷차림": {"외투": outer, "상의": top},
         })
 
     # 열흘 요약: 예보 열흘의 최저/최고 평균 vs 같은 기간 평년(1991~2020, 서울)의 최저/최고 평균
