@@ -303,6 +303,7 @@ def clothes_at(temp):
 # (시간별 예보는 약 2일치뿐이라, 기준일에서 뽑은 '차이'를 10일 전체에 적용)
 AM_HOUR = 9        # 오전 기준 시각
 PM_HOUR = 13       # 오후 기준 시각
+EV_HOUR = 19       # 저녁 기준 시각 (차이는 최고기온 대비: 19시 온도 − 최고)
 
 # --- 아래는 시간별 예보를 구하지 못했을 때의 예비(일출 기반) 공식 ---
 #   AM_RATIO = (9시 - 일출) / (15시 - 일출)   ← 15시 = 대략적인 일최고기온 도달 시각(thermal lag)
@@ -311,6 +312,7 @@ PEAK_HOUR = 15     # 일최고기온 도달 가정 시각
 AM_RATIO_MIN = 0.20
 AM_RATIO_MAX = 0.40
 PM_RATIO = 0.85    # 오후 1시: 최고기온에 상당히 근접 (고정)
+EV_RATIO = 0.40    # 오후 7시: 최고에서 내려와 최저~최고의 40% 지점쯤 (예비 공식용)
 
 
 def sunrise_hour(lat, lon, date, tz=9):
@@ -413,6 +415,7 @@ def scrape_region(region_code, kst_now, normals):
 
     delta_am = anchor_delta(AM_HOUR, use_max=False)  # 기준일 9시 온도 − 기준일 최저
     delta_pm = anchor_delta(PM_HOUR, use_max=True)   # 기준일 13시 온도 − 기준일 최고
+    delta_ev = anchor_delta(EV_HOUR, use_max=True)   # 기준일 19시 온도 − 기준일 최고
 
     days = []
     for ymd in sorted(by_date):
@@ -430,8 +433,13 @@ def scrape_region(region_code, kst_now, normals):
             t_pm = snap_half(tmax + delta_pm)
         else:
             t_pm = ref_temp(tmin, tmax, PM_RATIO)
+        if delta_ev is not None and tmax is not None:
+            t_ev = snap_half(tmax + delta_ev)
+        else:
+            t_ev = ref_temp(tmin, tmax, EV_RATIO)
         am_outer, am_top = clothes_at(t_am)
         pm_outer, pm_top = clothes_at(t_pm)
+        ev_outer, ev_top = clothes_at(t_ev)
         days.append({
             "날짜": "%s-%s-%s" % (ymd[:4], ymd[4:6], ymd[6:]),
             "요일": e["day"],
@@ -440,6 +448,8 @@ def scrape_region(region_code, kst_now, normals):
             "최저온도": tmin, "최고온도": tmax,
             "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead), "외투": am_outer, "상의": am_top},
             "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead), "외투": pm_outer, "상의": pm_top},
+            # 저녁 강수는 네이버 일자별 데이터에 별도 확률이 없어(오전/오후뿐) 생략
+            "저녁": {"기준온도": t_ev, "강수": None, "외투": ev_outer, "상의": ev_top},
         })
 
     # 열흘 요약: 예보 열흘의 최저/최고 평균 vs 같은 기간 평년(1991~2020, 서울)의 최저/최고 평균
