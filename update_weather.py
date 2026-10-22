@@ -439,16 +439,26 @@ def scrape_region(region_code, kst_now, normals):
         lead = max((day_date - kst_today).days, 0)
         tmin, tmax = temps[ymd]
         rise = sunrise_hour(lat, lon, day_date)
-        # 실제 시간별 예보에서 뽑은 차이를 우선 적용, 없으면 일출 기반 예비 공식
-        if delta_am is not None and tmin is not None:
+        # 기준온도 우선순위: ① 그날의 실제 시간별 예보값(오늘~모레쯤 제공)
+        # → ② 기준일 차이 근사 → ③ 일출/비율 기반 예비 공식
+        h_am = hourly_united(ymd, AM_HOUR)
+        h_pm = hourly_united(ymd, PM_HOUR)
+        h_ev = hourly_united(ymd, EV_HOUR)
+        if h_am is not None:
+            t_am = snap_half(h_am)
+        elif delta_am is not None and tmin is not None:
             t_am = snap_half(tmin + delta_am)
         else:
             t_am = ref_temp(tmin, tmax, am_ratio_for(lat, lon, day_date)[0])
-        if delta_pm is not None and tmax is not None:
+        if h_pm is not None:
+            t_pm = snap_half(h_pm)
+        elif delta_pm is not None and tmax is not None:
             t_pm = snap_half(tmax + delta_pm)
         else:
             t_pm = ref_temp(tmin, tmax, PM_RATIO)
-        if delta_ev is not None and tmax is not None:
+        if h_ev is not None:
+            t_ev = snap_half(h_ev)
+        elif delta_ev is not None and tmax is not None:
             t_ev = snap_half(tmax + delta_ev)
         else:
             t_ev = ref_temp(tmin, tmax, EV_RATIO)
@@ -464,10 +474,12 @@ def scrape_region(region_code, kst_now, normals):
             "계절": season_feel(day_date, tmin, tmax),
             "일출": "%02d:%02d" % (int(rise), int(rise % 1 * 60)),
             "최저온도": tmin, "최고온도": tmax,
-            "오전": {"기준온도": t_am, "강수": rain_summary(e["am"], lead)},
-            "오후": {"기준온도": t_pm, "강수": rain_summary(e["pm"], lead)},
-            # 저녁 강수: 시간별 예보의 실제 19시 확률(4사) 우선, 시간별이 없는
-            # 먼 날짜는 오후 확률로 대체(KMA 기준 '오후'가 자정까지 포함)
+            # 강수도 같은 우선순위: 그 시각의 실제 시간별 확률(4사) 우선,
+            # 없는 날짜는 일자별 오전/오후 확률로 대체(저녁은 오후로, KMA '오후'=자정까지)
+            "오전": {"기준온도": t_am,
+                    "강수": rain_summary(hourly_rain_probs(ymd, AM_HOUR) or e["am"], lead)},
+            "오후": {"기준온도": t_pm,
+                    "강수": rain_summary(hourly_rain_probs(ymd, PM_HOUR) or e["pm"], lead)},
             "저녁": {"기준온도": t_ev,
                     "강수": rain_summary(hourly_rain_probs(ymd, EV_HOUR) or e["pm"], lead)},
             "옷차림": {"외투": outer, "상의": top},
