@@ -4,9 +4,8 @@
 GitHub Actions가 하루 3번(한국시간 6·12·18시) 실행한다.
 
 강수확률 통합 방식 (단순 평균 사용 안 함):
-  Base = 중앙값 × 0.8 + 서비스별 신뢰도 가중평균 × 0.2
-  + Consensus 특수규칙(A~D)이 Base보다 우선
-  + 강수확률과 별개로 예보 일치도(Spread 기반)를 계산
+  확률 = 4사 중앙값 (극단값에 강건)
+  + 확률과 별개로 예보 일치도(Spread 기반, 3:1 소수의견 보정, 2:2 갈림 강등)
 """
 import datetime
 import json
@@ -52,22 +51,18 @@ REGIONS = [
 ]
 
 # ==================================================
-# 강수확률 통합 설정 (Brier Score 기반 가중치 조정을 위해 분리)
+# 강수확률 통합 설정
+# 확률 = 4사 중앙값 (가중평균은 신뢰도 근거가 없어 제거 — 실측 Brier Score가
+# 쌓이면 재도입 검토). 3곳 이상 합의 규칙(A/B/C)도 중앙값이 수학적으로 이미
+# 보장하므로 제거. 2:2 갈림의 일치도 강등만 유지.
 # ==================================================
 
-# 예보시간(lead time, 오늘=0)별 서비스 가중치: (최소 lead, 최대 lead(None=무제한), 가중치)
-RAIN_WEIGHTS = [
-    (0, 2, {"KMA": 0.40, "TWC": 0.30, "WEATHERNEWS": 0.20, "ACCUWEATHER": 0.10}),
-    (3, None, {"KMA": 0.30, "TWC": 0.40, "WEATHERNEWS": 0.15, "ACCUWEATHER": 0.15}),
-]
-
-MEDIAN_RATIO = 0.8  # Base = Median×0.8 + WeightedMean×0.2
-
 # 최종 확률 → 문구 / 짧은문구: (상한(미포함), 문구, 짧은문구)
+# 확률 문구는 사건 확률만 말한다 — 업체 간 불일치(불확실성)는 일치도 필드가 전담.
 RAIN_LABELS = [
     (20, "비 가능성 매우 낮음", "거의 안 옴"),
     (40, "비 가능성 낮음", "가능성 낮음"),
-    (60, "비 가능성 있음 / 불확실", "가능성 있음"),
+    (60, "비가 올 수도 있음", "가능성 반반"),
     (80, "비 올 가능성 높음", "가능성 높음"),
     (101, "비 올 가능성 매우 높음", "비 유력"),
 ]
@@ -197,51 +192,17 @@ CLOTHES_BANDS = [
 ]
 
 
-def pick_weights(lead):
-    for lo, hi, weights in RAIN_WEIGHTS:
-        if lead >= lo and (hi is None or lead <= hi):
-            return weights
-    return RAIN_WEIGHTS[-1][2]
-
-
-def rain_summary(probs, lead):
-    """서비스별 강수확률 dict {서비스: 0~100} + lead(일) → 통합 강수 정보 dict."""
+def rain_summary(probs):
+    """서비스별 강수확률 dict {서비스: 0~100} → 통합 강수 정보 dict.
+    확률 = 중앙값(4개면 가운데 두 값 평균). 일치도는 별도 축."""
     vals = {k: v for k, v in probs.items() if v is not None}
     if not vals:
         return None
     arr = sorted(vals.values())
     n = len(arr)
 
-    # 중앙값: 짝수 개면 가운데 두 값 평균
     median = (arr[n // 2 - 1] + arr[n // 2]) / 2 if n % 2 == 0 else arr[n // 2]
-
-    # 가중평균 (누락 서비스가 있으면 가중치 재정규화)
-    weights = pick_weights(lead)
-    wsum = sum(weights.get(k, 0) for k in vals)
-    if wsum > 0:
-        weighted = sum(v * weights.get(k, 0) for k, v in vals.items()) / wsum
-    else:
-        weighted = sum(arr) / n
-
-    base = median * MEDIAN_RATIO + weighted * (1 - MEDIAN_RATIO)
-
-    # Consensus 특수규칙 (A > B > C 순으로 우선 적용)
-    # 확률값을 조정하는 것은 3곳 이상의 합의가 있을 때뿐이다.
-    # 2:2로 갈린 경우는 확률(Base)을 조작하지 않는다 — 불확실성과 확률은 다른 축이므로
-    # 확률은 그대로 두고 일치도 쪽에서 "예보 크게 엇갈림"으로 표시한다.
-    low20 = sum(1 for v in arr if v <= 20)
-    high60 = sum(1 for v in arr if v >= 60)
-    high80 = sum(1 for v in arr if v >= 80)
-    if low20 >= 3:                              # [A] 3곳 이상 20% 이하 → 최대 20%로 제한
-        final = min(base, 20)
-    elif high80 >= 3:                           # [B] 3곳 이상 80% 이상 → 최소 80%
-        final = max(base, 80)
-    elif high60 >= 3:                           # [C] 3곳 이상 60% 이상 → 최소 60% (80으로 올리지 않음)
-        final = max(base, 60)
-    else:                                       # [D] Base 그대로 (2:2 갈림 포함)
-        final = base
-
-    final = max(0, min(100, int(round(final))))
+    final = max(0, min(100, int(round(median))))
 
     label = short = None
     for hi, lb, sh in RAIN_LABELS:
@@ -251,7 +212,7 @@ def rain_summary(probs, lead):
 
     # 일치도: Spread(최고-최저)는 극단값 하나에 휘둘리는 지표라 그대로 쓰지 않는다.
     # 3개가 20%p 이내로 뭉쳐 있고 하나만 40%p 이상 튀면 "3:1 소수의견"으로 보고
-    # 일치도는 합의된 3개의 Spread로 계산한다. (소수의견 자체는 별도 표시하지 않음)
+    # 일치도는 합의된 3개의 Spread로 계산한다.
     spread = max(arr) - min(arr)
     if n == 4:
         outlier_key = max(vals, key=lambda k: abs(vals[k] - median))
@@ -266,7 +227,10 @@ def rain_summary(probs, lead):
             agr_code, agr_text = code, text
             break
 
-    if n == 4 and high60 == 2 and low20 == 2:   # 2:2 완전 갈림 → 일치도만 최하로
+    # 2:2 완전 갈림 → 확률은 그대로, 일치도만 최하로 (불확실성≠확률)
+    low20 = sum(1 for v in arr if v <= 20)
+    high60 = sum(1 for v in arr if v >= 60)
+    if n == 4 and high60 == 2 and low20 == 2:
         agr_code, agr_text = "VERY_LOW", "예보 크게 엇갈림"
 
     return {"확률": final, "문구": label, "짧은문구": short,
@@ -294,13 +258,11 @@ def clothes_at(temp):
     return [], []
 
 
-# 옷차림 기준온도(오전 9시 / 오후 1시)는 같은 페이지의 시간별 예보에 있는
-# 실제 9시·13시 온도로 계산한다:
-#   기준일 = 그 시각이 아직 안 지났으면 오늘, 지났으면 다음날
-#   오전 차이 = 기준일 9시 온도(4사 최고·최저 제외 평균) − 기준일 통합 최저기온
-#   오후 차이 = 기준일 13시 온도(〃) − 기준일 통합 최고기온
-#   각 날짜의 기준온도 = 그날 최저 + 오전 차이 / 그날 최고 + 오후 차이
-# (시간별 예보는 약 2일치뿐이라, 기준일에서 뽑은 '차이'를 10일 전체에 적용)
+# 옷차림 기준온도(오전 9시 / 오후 1시 / 오후 7시) 우선순위:
+#   ① 그날의 실제 시간별 예보값(보통 오늘~모레 제공)
+#   ② 기준일의 "일교차 대비 비율"을 먼 날짜에 전달 (절대 차이가 아니라 비율 —
+#      일교차가 다른 날짜에 절대 차이를 더하면 최고기온을 넘는 등 불안정하므로)
+#   ③ 예비 공식(아래 일출 기반)
 AM_HOUR = 9        # 오전 기준 시각
 PM_HOUR = 13       # 오후 기준 시각
 EV_HOUR = 19       # 저녁 기준 시각 (차이는 최고기온 대비: 19시 온도 − 최고)
@@ -416,50 +378,54 @@ def scrape_region(region_code, kst_now, normals):
     # 날짜별 통합 최저/최고를 먼저 계산 (기준일 차이 계산에 필요)
     temps = {ymd: (avg_drop(e["min"]), avg_drop(e["max"])) for ymd, e in by_date.items()}
 
-    def anchor_delta(hour, use_max):
-        """실제 시간별 예보로 (기준시각 온도 − 기준일 최저/최고) 차이를 구한다.
-        기준일: 오늘 그 시각이 아직 안 지났으면 오늘, 지났으면 다음날."""
+    def anchor_ratio(hour, lo, hi):
+        """기준일(그 시각 전=오늘, 지났으면 다음날)의 실제 시간별 온도로
+        '일교차 대비 위치 비율'을 구한다: (기준시각 온도 − 기준일 최저) / 기준일 일교차.
+        절대 차이 대신 비율을 쓰는 이유: 일교차가 다른 먼 날짜에 절대 차이를 더하면
+        최고기온을 넘는 등 불안정하다. [lo, hi]로 제한해 극단값도 막는다."""
         basis = kst_today if kst_now.hour < hour else kst_today + datetime.timedelta(days=1)
-        ymd = basis.strftime("%Y%m%d")
-        t_hour = hourly_united(ymd, hour)
-        tmin_b, tmax_b = temps.get(ymd, (None, None))
-        ref = tmax_b if use_max else tmin_b
-        if t_hour is None or ref is None:
+        bymd = basis.strftime("%Y%m%d")
+        t_hour = hourly_united(bymd, hour)
+        tmin_b, tmax_b = temps.get(bymd, (None, None))
+        if t_hour is None or tmin_b is None or tmax_b is None:
             return None
-        return t_hour - ref
+        rng = tmax_b - tmin_b
+        if rng < 2:  # 일교차가 너무 작으면 비율이 불안정 → 예비 공식으로
+            return None
+        return min(max((t_hour - tmin_b) / rng, lo), hi)
 
-    delta_am = anchor_delta(AM_HOUR, use_max=False)  # 기준일 9시 온도 − 기준일 최저
-    delta_pm = anchor_delta(PM_HOUR, use_max=True)   # 기준일 13시 온도 − 기준일 최고
-    delta_ev = anchor_delta(EV_HOUR, use_max=True)   # 기준일 19시 온도 − 기준일 최고
+    ratio_am = anchor_ratio(AM_HOUR, 0.15, 0.50)
+    ratio_pm = anchor_ratio(PM_HOUR, 0.60, 1.00)
+    ratio_ev = anchor_ratio(EV_HOUR, 0.10, 0.80)
 
     days = []
     for ymd in sorted(by_date):
         e = by_date[ymd]
         day_date = datetime.date(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:]))
-        lead = max((day_date - kst_today).days, 0)
         tmin, tmax = temps[ymd]
         rise = sunrise_hour(lat, lon, day_date)
         # 기준온도 우선순위: ① 그날의 실제 시간별 예보값(오늘~모레쯤 제공)
-        # → ② 기준일 차이 근사 → ③ 일출/비율 기반 예비 공식
+        # → ② 기준일 비율 근사(그날 최저 + 그날 일교차 × 비율) → ③ 예비 공식
         h_am = hourly_united(ymd, AM_HOUR)
         h_pm = hourly_united(ymd, PM_HOUR)
         h_ev = hourly_united(ymd, EV_HOUR)
+        has_range = tmin is not None and tmax is not None
         if h_am is not None:
             t_am = snap_half(h_am)
-        elif delta_am is not None and tmin is not None:
-            t_am = snap_half(tmin + delta_am)
+        elif ratio_am is not None and has_range:
+            t_am = snap_half(tmin + (tmax - tmin) * ratio_am)
         else:
             t_am = ref_temp(tmin, tmax, am_ratio_for(lat, lon, day_date)[0])
         if h_pm is not None:
             t_pm = snap_half(h_pm)
-        elif delta_pm is not None and tmax is not None:
-            t_pm = snap_half(tmax + delta_pm)
+        elif ratio_pm is not None and has_range:
+            t_pm = snap_half(tmin + (tmax - tmin) * ratio_pm)
         else:
             t_pm = ref_temp(tmin, tmax, PM_RATIO)
         if h_ev is not None:
             t_ev = snap_half(h_ev)
-        elif delta_ev is not None and tmax is not None:
-            t_ev = snap_half(tmax + delta_ev)
+        elif ratio_ev is not None and has_range:
+            t_ev = snap_half(tmin + (tmax - tmin) * ratio_ev)
         else:
             t_ev = ref_temp(tmin, tmax, EV_RATIO)
         # 하루 옷차림 통합: 옷은 아침에 한 번 입으므로 시간대별이 아니라 하루 한 벌.
@@ -477,11 +443,11 @@ def scrape_region(region_code, kst_now, normals):
             # 강수도 같은 우선순위: 그 시각의 실제 시간별 확률(4사) 우선,
             # 없는 날짜는 일자별 오전/오후 확률로 대체(저녁은 오후로, KMA '오후'=자정까지)
             "오전": {"기준온도": t_am,
-                    "강수": rain_summary(hourly_rain_probs(ymd, AM_HOUR) or e["am"], lead)},
+                    "강수": rain_summary(hourly_rain_probs(ymd, AM_HOUR) or e["am"])},
             "오후": {"기준온도": t_pm,
-                    "강수": rain_summary(hourly_rain_probs(ymd, PM_HOUR) or e["pm"], lead)},
+                    "강수": rain_summary(hourly_rain_probs(ymd, PM_HOUR) or e["pm"])},
             "저녁": {"기준온도": t_ev,
-                    "강수": rain_summary(hourly_rain_probs(ymd, EV_HOUR) or e["pm"], lead)},
+                    "강수": rain_summary(hourly_rain_probs(ymd, EV_HOUR) or e["pm"])},
             "옷차림": {"외투": outer, "상의": top},
         })
 
