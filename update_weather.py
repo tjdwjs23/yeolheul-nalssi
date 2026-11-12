@@ -496,6 +496,43 @@ for code in REGIONS:
     print("수집:", regions[code]["지역명"], len(regions[code]["일자별"]), "일치")
     time.sleep(1)  # 네이버에 연속 요청 간 간격
 
+# 어제 대비: 예보는 오늘부터라 어제 값은 직전 data.json에서 가져온다.
+# (어제 마지막 갱신의 당일 예보 = 어제 최저/최고의 가장 정확한 근사)
+# 오늘 첫 갱신에서 찾은 값은 "어제" 필드로 보존해 당일 내내 이어진다.
+yesterday_iso = (kst_today - datetime.timedelta(days=1)).isoformat()
+today_iso = kst_today.isoformat()
+
+def yesterday_temps(old_region):
+    if not old_region:
+        return None
+    for d in old_region.get("일자별", []):
+        if (d.get("날짜") == yesterday_iso
+                and d.get("최저온도") is not None and d.get("최고온도") is not None):
+            return {"날짜": yesterday_iso, "최저": d["최저온도"], "최고": d["최고온도"]}
+    kept = old_region.get("어제")
+    if kept and kept.get("날짜") == yesterday_iso:
+        return kept
+    return None
+
+try:
+    with open("data.json", encoding="utf-8") as f:
+        prev_regions = json.load(f).get("지역들", {})
+except Exception:
+    prev_regions = {}
+
+for code, region in regions.items():
+    y = yesterday_temps(prev_regions.get(code))
+    region["어제"] = y
+    today_entry = next((d for d in region["일자별"] if d["날짜"] == today_iso), None)
+    if y and today_entry:
+        region["어제비교"] = {
+            "어제최저": y["최저"], "어제최고": y["최고"],
+            "최저차": round(today_entry["최저온도"] - y["최저"], 1),
+            "최고차": round(today_entry["최고온도"] - y["최고"], 1),
+        }
+    else:
+        region["어제비교"] = None
+
 result = {
     "기본지역": REGIONS[0],
     "지역들": regions,

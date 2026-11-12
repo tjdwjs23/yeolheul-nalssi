@@ -486,6 +486,18 @@ h1 {
   opacity: 0.58;
 }
 
+.hero-yesterday {
+  margin: -14px 0 22px;
+
+  color: var(--muted);
+
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.hero-yesterday .up { color: var(--warm); }
+.hero-yesterday .down { color: var(--cool); }
+
 
 /* =========================================================
    MORNING / AFTERNOON
@@ -1888,6 +1900,23 @@ function render(
      TODAY HERO
   ======================================================= */
 
+  // 어제 대비 (최저·최고): 오늘 날짜가 맞을 때만 표시
+  let yesterdayLine = "";
+  const ycmp = region["어제비교"];
+  if (ycmp && today["날짜"] === todayIso) {
+    const part = (label, v) =>
+      v > 0 ? label + ' <b class="up">' + v + '° 높음</b>'
+      : v < 0 ? label + ' <b class="down">' + Math.abs(v) + '° 낮음</b>'
+      : null;
+    const lo = part("최저", ycmp["최저차"]);
+    const hi = part("최고", ycmp["최고차"]);
+    const body =
+      (lo || hi)
+        ? "어제보다 " + [lo || "최저 그대로", hi || "최고 그대로"].join(" · ")
+        : "어제와 최저·최고 기온이 같아요";
+    yesterdayLine = '<div class="hero-yesterday">' + body + '</div>';
+  }
+
   html +=
     '<section class="card hero">' +
 
@@ -1943,6 +1972,7 @@ function render(
 
       '</div>' +
 
+      yesterdayLine +
 
       timesRow(today) +
       outfitBlock(today) +
